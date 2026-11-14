@@ -7,7 +7,9 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-openfi_solana = "DkxtSBdYJEJ9vBaoeoWDdstBqZwnqfJUr39DsrgufnzA"
+openfi_allowance = "9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B"
+openfi_identity = "8LeyKvcY9XkHYt6WePMdwc8cpRHCoXsVqkXY1QJ7Q5Yo"
+openfi_router = "d85jMjdA3wUtjeD1wBuAarMMcYczSmNyWajJSxpW7UL"
 
 [provider]
 cluster = "localnet"

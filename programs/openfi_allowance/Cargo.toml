@@ -1,20 +1,20 @@
 [package]
-name = "openfi-solana"
+name = "openfi_allowance"
 version = "0.1.0"
-description = "Created with Anchor"
+description = "OpenFi AllowanceStateMachine"
 edition.workspace = true
 rust-version.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "openfi_solana"
+name = "openfi_allowance"
 
 [features]
 default = []
 cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-log-ix-name = []
-idl-build = ["anchor-lang/idl-build"]
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "openfi_identity/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
@@ -22,14 +22,8 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = "1.2.2"
-
-[dev-dependencies]
-# Cargo.lock pins LiteSVM's Rust-1.89-compatible dependency graph.
-litesvm = "0.15.0"
-solana-message = "4"
-solana-transaction = "4"
-solana-signer = "3"
-solana-keypair = "3"
+anchor-spl = "1.2.2"
+openfi_identity = { path = "../openfi_identity", features = ["cpi"] }
 
 
 [lints.rust]
