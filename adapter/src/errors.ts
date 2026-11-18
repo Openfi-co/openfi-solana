@@ -9,6 +9,7 @@ import { TxFailure } from './transport.js';
 const SPECIAL: Record<string, ChainErrorCode> = {
   InvalidLevel: 'INVALID_AMOUNT',
   InvalidExpiry: 'INVALID_AMOUNT',
+  StaleStatusVersion: 'INVALID_AMOUNT',
   InvalidMandate: 'INVALID_AMOUNT',
   TooManyPayees: 'INVALID_AMOUNT',
   NotRestorable: 'INVALID_AMOUNT',

@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 pub const REGISTRY_SEED: &[u8] = b"registry";
 pub const CREDENTIAL_SEED: &[u8] = b"credential";
 pub const NULLIFIER_SEED: &[u8] = b"nullifier";
+pub const STATUS_SEED: &[u8] = b"status";
 
 /// Identity levels, lowest first. Comparisons are numeric.
 pub const LEVEL_NONE: u8 = 0;
@@ -39,5 +40,20 @@ pub struct CredentialAnchor {
 #[derive(InitSpace)]
 pub struct NullifierRecord {
     pub subject: Pubkey,
+    pub bump: u8,
+}
+
+/// The on-chain anchor of the issuer's off-chain credential status list
+/// (revocations of VC-JWTs). Relying parties check a credential's status
+/// entry against this root. On-chain gating does not wait for it:
+/// `revoke_credential` takes effect in `assert_human` immediately.
+#[account]
+#[derive(InitSpace)]
+pub struct StatusList {
+    /// Root (hash) of the current status list.
+    pub root: [u8; 32],
+    /// Strictly increasing; an older list can never be re-published.
+    pub version: u64,
+    pub updated_at: i64,
     pub bump: u8,
 }

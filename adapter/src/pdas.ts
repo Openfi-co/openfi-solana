@@ -36,6 +36,7 @@ export const identityPdas = {
   registry: () => findPda(OPENFI_IDENTITY_PROGRAM_ADDRESS, 'registry'),
   credential: (subject: Address) => findPda(OPENFI_IDENTITY_PROGRAM_ADDRESS, 'credential', bytes(subject)),
   nullifier: (nullifier: Uint8Array) => findPda(OPENFI_IDENTITY_PROGRAM_ADDRESS, 'nullifier', nullifier),
+  status: () => findPda(OPENFI_IDENTITY_PROGRAM_ADDRESS, 'status'),
 };
 
 export const allowancePdas = {

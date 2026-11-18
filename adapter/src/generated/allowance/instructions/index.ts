@@ -7,7 +7,9 @@
  */
 
 export * from './authorizePull.js';
+export * from './close.js';
 export * from './createMandate.js';
+export * from './deposit.js';
 export * from './executePull.js';
 export * from './initConfig.js';
 export * from './issueSession.js';

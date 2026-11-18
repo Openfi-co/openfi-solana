@@ -7,6 +7,8 @@
  */
 
 export * from './allowanceRestored.js';
+export * from './deposited.js';
+export * from './mandateClosed.js';
 export * from './mandateCreated.js';
 export * from './mandateRevoked.js';
 export * from './mandateUpdated.js';

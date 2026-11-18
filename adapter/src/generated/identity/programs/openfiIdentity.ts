@@ -8,32 +8,34 @@
 
 import { assertIsInstructionWithAccounts, containsBytes, extendClient, fixEncoderSize, getBytesEncoder, SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT, SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION, SOLANA_ERROR__PROGRAM_CLIENTS__UNRECOGNIZED_INSTRUCTION_TYPE, SolanaError, type Address, type ClientWithRpc, type ClientWithTransactionPlanning, type ClientWithTransactionSending, type ExtendedClient, type GetAccountInfoApi, type GetMultipleAccountsApi, type HasAddress, type Instruction, type InstructionWithData, type ReadonlyUint8Array } from '@solana/kit';
 import { addSelfFetchFunctions, addSelfPlanAndSendFunctions, type SelfFetchFunctions, type SelfPlanAndSendFunctions } from '@solana/program-client-core';
-import { getCredentialAnchorCodec, getNullifierRecordCodec, getRegistryCodec, type CredentialAnchor, type CredentialAnchorArgs, type NullifierRecord, type NullifierRecordArgs, type Registry, type RegistryArgs } from '../accounts/index.js';
-import { getAnchorCredentialInstructionAsync, getAssertHumanInstruction, getInitRegistryInstructionAsync, getRevokeCredentialInstructionAsync, getSetIssuerInstructionAsync, parseAnchorCredentialInstruction, parseAssertHumanInstruction, parseInitRegistryInstruction, parseRevokeCredentialInstruction, parseSetIssuerInstruction, type AnchorCredentialAsyncInput, type AssertHumanInput, type InitRegistryAsyncInput, type ParsedAnchorCredentialInstruction, type ParsedAssertHumanInstruction, type ParsedInitRegistryInstruction, type ParsedRevokeCredentialInstruction, type ParsedSetIssuerInstruction, type RevokeCredentialAsyncInput, type SetIssuerAsyncInput } from '../instructions/index.js';
-import { findCredentialPda, findNullifierRecordPda, findRegistryPda } from '../pdas/index.js';
+import { getCredentialAnchorCodec, getNullifierRecordCodec, getRegistryCodec, getStatusListCodec, type CredentialAnchor, type CredentialAnchorArgs, type NullifierRecord, type NullifierRecordArgs, type Registry, type RegistryArgs, type StatusList, type StatusListArgs } from '../accounts/index.js';
+import { getAnchorCredentialInstructionAsync, getAssertHumanInstruction, getInitRegistryInstructionAsync, getRevokeCredentialInstructionAsync, getRotateStatusRootInstructionAsync, getSetIssuerInstructionAsync, parseAnchorCredentialInstruction, parseAssertHumanInstruction, parseInitRegistryInstruction, parseRevokeCredentialInstruction, parseRotateStatusRootInstruction, parseSetIssuerInstruction, type AnchorCredentialAsyncInput, type AssertHumanInput, type InitRegistryAsyncInput, type ParsedAnchorCredentialInstruction, type ParsedAssertHumanInstruction, type ParsedInitRegistryInstruction, type ParsedRevokeCredentialInstruction, type ParsedRotateStatusRootInstruction, type ParsedSetIssuerInstruction, type RevokeCredentialAsyncInput, type RotateStatusRootAsyncInput, type SetIssuerAsyncInput } from '../instructions/index.js';
+import { findCredentialPda, findNullifierRecordPda, findRegistryPda, findStatusPda } from '../pdas/index.js';
 
 export const OPENFI_IDENTITY_PROGRAM_ADDRESS = '8LeyKvcY9XkHYt6WePMdwc8cpRHCoXsVqkXY1QJ7Q5Yo' as Address<'8LeyKvcY9XkHYt6WePMdwc8cpRHCoXsVqkXY1QJ7Q5Yo'>;
 
-export enum OpenfiIdentityAccount { CredentialAnchor, NullifierRecord, Registry }
+export enum OpenfiIdentityAccount { CredentialAnchor, NullifierRecord, Registry, StatusList }
 
 export function identifyOpenfiIdentityAccount(account: { data: ReadonlyUint8Array } | ReadonlyUint8Array): OpenfiIdentityAccount {
     const data = 'data' in account ? account.data : account;
     if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([109, 236, 59, 69, 105, 178, 12, 89])), 0)) { return OpenfiIdentityAccount.CredentialAnchor; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([56, 18, 57, 175, 69, 202, 189, 70])), 0)) { return OpenfiIdentityAccount.NullifierRecord; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([47, 174, 110, 246, 184, 182, 252, 218])), 0)) { return OpenfiIdentityAccount.Registry; }
+if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([128, 202, 59, 123, 106, 255, 246, 185])), 0)) { return OpenfiIdentityAccount.StatusList; }
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT, { accountData: data, programName: "openfiIdentity" });
 }
 
-export enum OpenfiIdentityEvent { CredentialAnchored, CredentialRevoked }
+export enum OpenfiIdentityEvent { CredentialAnchored, CredentialRevoked, StatusRootRotated }
 
 export function identifyOpenfiIdentityEvent(event: { data: ReadonlyUint8Array } | ReadonlyUint8Array): OpenfiIdentityEvent {
     const data = 'data' in event ? event.data : event;
     if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([83, 132, 101, 152, 64, 133, 57, 129])), 0)) { return OpenfiIdentityEvent.CredentialAnchored; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([127, 131, 241, 234, 50, 139, 145, 204])), 0)) { return OpenfiIdentityEvent.CredentialRevoked; }
+if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([220, 19, 250, 217, 18, 199, 152, 94])), 0)) { return OpenfiIdentityEvent.StatusRootRotated; }
     throw new Error('The provided event could not be identified as a openfiIdentity event.');
 }
 
-export enum OpenfiIdentityInstruction { AnchorCredential, AssertHuman, InitRegistry, RevokeCredential, SetIssuer }
+export enum OpenfiIdentityInstruction { AnchorCredential, AssertHuman, InitRegistry, RevokeCredential, RotateStatusRoot, SetIssuer }
 
 export function identifyOpenfiIdentityInstruction(instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array): OpenfiIdentityInstruction {
     const data = 'data' in instruction ? instruction.data : instruction;
@@ -41,6 +43,7 @@ export function identifyOpenfiIdentityInstruction(instruction: { data: ReadonlyU
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([84, 81, 132, 11, 86, 17, 51, 59])), 0)) { return OpenfiIdentityInstruction.AssertHuman; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([131, 22, 4, 103, 24, 94, 163, 239])), 0)) { return OpenfiIdentityInstruction.InitRegistry; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([38, 123, 95, 95, 223, 158, 169, 87])), 0)) { return OpenfiIdentityInstruction.RevokeCredential; }
+if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([88, 37, 124, 197, 180, 76, 117, 33])), 0)) { return OpenfiIdentityInstruction.RotateStatusRoot; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([122, 240, 209, 127, 179, 164, 175, 206])), 0)) { return OpenfiIdentityInstruction.SetIssuer; }
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION, { instructionData: data, programName: "openfiIdentity" });
 }
@@ -50,6 +53,7 @@ export type ParsedOpenfiIdentityInstruction<TProgram extends string = '8LeyKvcY9
 | { instructionType: OpenfiIdentityInstruction.AssertHuman } & ParsedAssertHumanInstruction<TProgram>
 | { instructionType: OpenfiIdentityInstruction.InitRegistry } & ParsedInitRegistryInstruction<TProgram>
 | { instructionType: OpenfiIdentityInstruction.RevokeCredential } & ParsedRevokeCredentialInstruction<TProgram>
+| { instructionType: OpenfiIdentityInstruction.RotateStatusRoot } & ParsedRotateStatusRootInstruction<TProgram>
 | { instructionType: OpenfiIdentityInstruction.SetIssuer } & ParsedSetIssuerInstruction<TProgram>
 
 
@@ -67,6 +71,8 @@ case OpenfiIdentityInstruction.InitRegistry: { assertIsInstructionWithAccounts(i
 return { instructionType: OpenfiIdentityInstruction.InitRegistry, ...parseInitRegistryInstruction(instruction) }; }
 case OpenfiIdentityInstruction.RevokeCredential: { assertIsInstructionWithAccounts(instruction);
 return { instructionType: OpenfiIdentityInstruction.RevokeCredential, ...parseRevokeCredentialInstruction(instruction) }; }
+case OpenfiIdentityInstruction.RotateStatusRoot: { assertIsInstructionWithAccounts(instruction);
+return { instructionType: OpenfiIdentityInstruction.RotateStatusRoot, ...parseRotateStatusRootInstruction(instruction) }; }
 case OpenfiIdentityInstruction.SetIssuer: { assertIsInstructionWithAccounts(instruction);
 return { instructionType: OpenfiIdentityInstruction.SetIssuer, ...parseSetIssuerInstruction(instruction) }; }
                 default: throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__UNRECOGNIZED_INSTRUCTION_TYPE, { instructionType: instructionType as string, programName: "openfiIdentity" });
@@ -75,16 +81,16 @@ return { instructionType: OpenfiIdentityInstruction.SetIssuer, ...parseSetIssuer
 
 export type OpenfiIdentityPlugin = { accounts: OpenfiIdentityPluginAccounts; instructions: OpenfiIdentityPluginInstructions; pdas: OpenfiIdentityPluginPdas; identifyAccount: typeof identifyOpenfiIdentityAccount; identifyInstruction: typeof identifyOpenfiIdentityInstruction; parseInstruction: typeof parseOpenfiIdentityInstruction; }
 
-export type OpenfiIdentityPluginAccounts = { credentialAnchor: ReturnType<typeof getCredentialAnchorCodec> & SelfFetchFunctions<CredentialAnchorArgs, CredentialAnchor>; nullifierRecord: ReturnType<typeof getNullifierRecordCodec> & SelfFetchFunctions<NullifierRecordArgs, NullifierRecord>; registry: ReturnType<typeof getRegistryCodec> & SelfFetchFunctions<RegistryArgs, Registry>; }
+export type OpenfiIdentityPluginAccounts = { credentialAnchor: ReturnType<typeof getCredentialAnchorCodec> & SelfFetchFunctions<CredentialAnchorArgs, CredentialAnchor>; nullifierRecord: ReturnType<typeof getNullifierRecordCodec> & SelfFetchFunctions<NullifierRecordArgs, NullifierRecord>; registry: ReturnType<typeof getRegistryCodec> & SelfFetchFunctions<RegistryArgs, Registry>; statusList: ReturnType<typeof getStatusListCodec> & SelfFetchFunctions<StatusListArgs, StatusList>; }
 
-export type OpenfiIdentityPluginInstructions = { anchorCredential: (input: AnchorCredentialAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getAnchorCredentialInstructionAsync> & SelfPlanAndSendFunctions; assertHuman: (input: AssertHumanInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getAssertHumanInstruction> & SelfPlanAndSendFunctions; initRegistry: (input: InitRegistryAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getInitRegistryInstructionAsync> & SelfPlanAndSendFunctions; revokeCredential: (input: RevokeCredentialAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getRevokeCredentialInstructionAsync> & SelfPlanAndSendFunctions; setIssuer: (input: SetIssuerAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getSetIssuerInstructionAsync> & SelfPlanAndSendFunctions; }
+export type OpenfiIdentityPluginInstructions = { anchorCredential: (input: AnchorCredentialAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getAnchorCredentialInstructionAsync> & SelfPlanAndSendFunctions; assertHuman: (input: AssertHumanInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getAssertHumanInstruction> & SelfPlanAndSendFunctions; initRegistry: (input: InitRegistryAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getInitRegistryInstructionAsync> & SelfPlanAndSendFunctions; revokeCredential: (input: RevokeCredentialAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getRevokeCredentialInstructionAsync> & SelfPlanAndSendFunctions; rotateStatusRoot: (input: RotateStatusRootAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getRotateStatusRootInstructionAsync> & SelfPlanAndSendFunctions; setIssuer: (input: SetIssuerAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getSetIssuerInstructionAsync> & SelfPlanAndSendFunctions; }
 
-export type OpenfiIdentityPluginPdas = { registry: typeof findRegistryPda; credential: typeof findCredentialPda; nullifierRecord: typeof findNullifierRecordPda; }
+export type OpenfiIdentityPluginPdas = { registry: typeof findRegistryPda; credential: typeof findCredentialPda; nullifierRecord: typeof findNullifierRecordPda; status: typeof findStatusPda; }
 
 export type OpenfiIdentityPluginRequirements = ClientWithRpc<GetAccountInfoApi & GetMultipleAccountsApi> & ClientWithTransactionPlanning & ClientWithTransactionSending
 
 export function openfiIdentityProgram(config: { programAddress?: Address | HasAddress } = {}) {
     return <T extends OpenfiIdentityPluginRequirements>(client: T): ExtendedClient<T, { openfiIdentity: OpenfiIdentityPlugin }> => {
-        return extendClient(client, { openfiIdentity: <OpenfiIdentityPlugin>{ accounts: { credentialAnchor: addSelfFetchFunctions(client, getCredentialAnchorCodec()), nullifierRecord: addSelfFetchFunctions(client, getNullifierRecordCodec()), registry: addSelfFetchFunctions(client, getRegistryCodec()) }, instructions: { anchorCredential: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getAnchorCredentialInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), assertHuman: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getAssertHumanInstruction(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), initRegistry: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getInitRegistryInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), revokeCredential: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getRevokeCredentialInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), setIssuer: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getSetIssuerInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })) }, pdas: { registry: pdaConfig => findRegistryPda({ programAddress: pdaConfig?.programAddress ?? config.programAddress }), credential: (seeds, pdaConfig) => findCredentialPda(seeds, { programAddress: pdaConfig?.programAddress ?? config.programAddress }), nullifierRecord: (seeds, pdaConfig) => findNullifierRecordPda(seeds, { programAddress: pdaConfig?.programAddress ?? config.programAddress }) }, identifyAccount: identifyOpenfiIdentityAccount, identifyInstruction: identifyOpenfiIdentityInstruction, parseInstruction: parseOpenfiIdentityInstruction } });
+        return extendClient(client, { openfiIdentity: <OpenfiIdentityPlugin>{ accounts: { credentialAnchor: addSelfFetchFunctions(client, getCredentialAnchorCodec()), nullifierRecord: addSelfFetchFunctions(client, getNullifierRecordCodec()), registry: addSelfFetchFunctions(client, getRegistryCodec()), statusList: addSelfFetchFunctions(client, getStatusListCodec()) }, instructions: { anchorCredential: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getAnchorCredentialInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), assertHuman: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getAssertHumanInstruction(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), initRegistry: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getInitRegistryInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), revokeCredential: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getRevokeCredentialInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), rotateStatusRoot: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getRotateStatusRootInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), setIssuer: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getSetIssuerInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })) }, pdas: { registry: pdaConfig => findRegistryPda({ programAddress: pdaConfig?.programAddress ?? config.programAddress }), credential: (seeds, pdaConfig) => findCredentialPda(seeds, { programAddress: pdaConfig?.programAddress ?? config.programAddress }), nullifierRecord: (seeds, pdaConfig) => findNullifierRecordPda(seeds, { programAddress: pdaConfig?.programAddress ?? config.programAddress }), status: pdaConfig => findStatusPda({ programAddress: pdaConfig?.programAddress ?? config.programAddress }) }, identifyAccount: identifyOpenfiIdentityAccount, identifyInstruction: identifyOpenfiIdentityInstruction, parseInstruction: parseOpenfiIdentityInstruction } });
     };
 }

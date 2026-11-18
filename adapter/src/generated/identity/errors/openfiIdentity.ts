@@ -17,12 +17,14 @@ export const OPENFI_IDENTITY_ERROR__DUPLICATE_IDENTITY = 0x1771; // 6001
 export const OPENFI_IDENTITY_ERROR__INVALID_LEVEL = 0x1772; // 6002
 /** InvalidExpiry: Credential expiry must be in the future */
 export const OPENFI_IDENTITY_ERROR__INVALID_EXPIRY = 0x1773; // 6003
+/** StaleStatusVersion: Status list version must be higher than the current one */
+export const OPENFI_IDENTITY_ERROR__STALE_STATUS_VERSION = 0x1774; // 6004
 
-export type OpenfiIdentityError = typeof OPENFI_IDENTITY_ERROR__DUPLICATE_IDENTITY | typeof OPENFI_IDENTITY_ERROR__IDENTITY_REQUIRED | typeof OPENFI_IDENTITY_ERROR__INVALID_EXPIRY | typeof OPENFI_IDENTITY_ERROR__INVALID_LEVEL;
+export type OpenfiIdentityError = typeof OPENFI_IDENTITY_ERROR__DUPLICATE_IDENTITY | typeof OPENFI_IDENTITY_ERROR__IDENTITY_REQUIRED | typeof OPENFI_IDENTITY_ERROR__INVALID_EXPIRY | typeof OPENFI_IDENTITY_ERROR__INVALID_LEVEL | typeof OPENFI_IDENTITY_ERROR__STALE_STATUS_VERSION;
 
 let openfiIdentityErrorMessages: Record<OpenfiIdentityError, string> | undefined;
 if (process.env['NODE_ENV'] !== 'production') {
-  openfiIdentityErrorMessages = { [OPENFI_IDENTITY_ERROR__DUPLICATE_IDENTITY]: `This identity is already bound to another wallet`, [OPENFI_IDENTITY_ERROR__IDENTITY_REQUIRED]: `Subject has no valid credential at the required level`, [OPENFI_IDENTITY_ERROR__INVALID_EXPIRY]: `Credential expiry must be in the future`, [OPENFI_IDENTITY_ERROR__INVALID_LEVEL]: `Unknown identity level` };
+  openfiIdentityErrorMessages = { [OPENFI_IDENTITY_ERROR__DUPLICATE_IDENTITY]: `This identity is already bound to another wallet`, [OPENFI_IDENTITY_ERROR__IDENTITY_REQUIRED]: `Subject has no valid credential at the required level`, [OPENFI_IDENTITY_ERROR__INVALID_EXPIRY]: `Credential expiry must be in the future`, [OPENFI_IDENTITY_ERROR__INVALID_LEVEL]: `Unknown identity level`, [OPENFI_IDENTITY_ERROR__STALE_STATUS_VERSION]: `Status list version must be higher than the current one` };
 }
 
 export function getOpenfiIdentityErrorMessage(code: OpenfiIdentityError): string {

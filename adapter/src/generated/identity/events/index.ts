@@ -8,3 +8,4 @@
 
 export * from './credentialAnchored.js';
 export * from './credentialRevoked.js';
+export * from './statusRootRotated.js';

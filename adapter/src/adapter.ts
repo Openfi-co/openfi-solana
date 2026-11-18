@@ -18,7 +18,9 @@ import {
 } from '@openfi/chain-interface';
 import {
   getAuthorizePullInstruction,
+  getCloseInstruction,
   getCreateMandateInstruction,
+  getDepositInstruction,
   getExecutePullInstruction,
   getIssueSessionInstruction,
   getMandateDecoder,
@@ -34,6 +36,8 @@ import {
   getAnchorCredentialInstruction,
   getCredentialAnchorDecoder,
   getRevokeCredentialInstruction,
+  getRotateStatusRootInstruction,
+  getStatusListDecoder,
 } from './generated/identity/index.js';
 import { getSettleInstruction, getSettlementDecoder, OPENFI_ROUTER_PROGRAM_ADDRESS } from './generated/router/index.js';
 import { toChainError } from './errors.js';
@@ -141,6 +145,30 @@ export class SolanaChainAdapter implements ChainAdapter {
     ]);
   }
 
+  /**
+   * Publish a new root of the issuer's off-chain credential status list.
+   * `version` must be higher than the current one. Solana-specific for now.
+   */
+  async rotateStatusRoot(i: { root: string; version: number }): Promise<TxResult> {
+    return this.submit([
+      getRotateStatusRootInstruction({
+        issuer: this.executor,
+        registry: identityPdas.registry(),
+        status: identityPdas.status(),
+        root: hex32(i.root),
+        version: i.version,
+      }),
+    ]);
+  }
+
+  /** The current status-list root (hex), or null if none has been published. */
+  async statusRoot(): Promise<{ root: string; version: number; updatedAt: number } | null> {
+    const acc = await this.t.getAccount(identityPdas.status());
+    if (!acc) return null;
+    const s = getStatusListDecoder().decode(acc.data);
+    return { root: Buffer.from(s.root).toString('hex'), version: Number(s.version), updatedAt: Number(s.updatedAt) };
+  }
+
   async isVerified(subject: string, minLevel: IdentityLevel): Promise<boolean> {
     if (minLevel === 'none') return true;
     const acc = await this.t.getAccount(identityPdas.credential(subject as Address));
@@ -208,6 +236,47 @@ export class SolanaChainAdapter implements ChainAdapter {
   async revokeMandate(mandateId: string): Promise<TxResult> {
     const { address: mandate, data } = await this.loadMandate(mandateId);
     return this.submit([getRevokeMandateInstruction({ principal: this.principal(data.principal), mandate })]);
+  }
+
+  /** Prefund: the principal moves `amount` from their own token account into the mandate's vault. Solana-specific for now. */
+  async deposit(i: { mandateId: string; amount: bigint }): Promise<TxResult> {
+    if (i.amount <= 0n) throw new ChainError('INVALID_AMOUNT');
+    const { address: mandate, data } = await this.loadMandate(i.mandateId);
+    return this.submit([
+      getDepositInstruction({
+        principal: this.principal(data.principal),
+        mandate,
+        principalToken: await this.tokenAccount(data.principal),
+        vault: allowancePdas.vault(mandate),
+        mint: this.mint,
+        tokenProgram: this.tokenProgram,
+        amount: i.amount,
+      }),
+    ]);
+  }
+
+  /**
+   * End a mandate: revoke it, pay the vault balance to the principal, close
+   * the vault. Signed by the principal and by OpenFi as operator, which must
+   * only co-sign once no settlement into the vault can still be reversed.
+   * Solana-specific for now.
+   */
+  async closeMandate(mandateId: string): Promise<TxResult> {
+    const { address: mandate, data } = await this.loadMandate(mandateId);
+    const vault = allowancePdas.vault(mandate);
+    if (!(await this.t.getAccount(vault))) return { txId: null, status: 'duplicate' };
+    return this.submit([
+      getCloseInstruction({
+        principal: this.principal(data.principal),
+        operator: this.executor,
+        config: allowancePdas.config(),
+        mandate,
+        principalToken: await this.tokenAccount(data.principal),
+        vault,
+        mint: this.mint,
+        tokenProgram: this.tokenProgram,
+      }),
+    ]);
   }
 
   async issueSession(i: { mandateId: string; sessionPubkey: string; subCap: bigint; expiresAt: number }): Promise<TxResult> {

@@ -9,3 +9,4 @@
 export * from './credential.js';
 export * from './nullifierRecord.js';
 export * from './registry.js';
+export * from './status.js';

@@ -28,6 +28,18 @@ pub mod openfi_identity {
         Ok(())
     }
 
+    /// Publish a new root for the issuer's credential status list. Issuer only;
+    /// `version` must be higher than the current one, so an old list (one that
+    /// predates a revocation) cannot be replayed.
+    pub fn rotate_status_root(ctx: Context<RotateStatusRoot>, root: [u8; 32], version: u64) -> Result<()> {
+        let status = &mut ctx.accounts.status;
+        require!(version > status.version, IdentityError::StaleStatusVersion);
+        let now = Clock::get()?.unix_timestamp;
+        status.set_inner(StatusList { root, version, updated_at: now, bump: ctx.bumps.status });
+        emit!(StatusRootRotated { root, version });
+        Ok(())
+    }
+
     pub fn anchor_credential(
         ctx: Context<AnchorCredential>,
         subject: Pubkey,
@@ -114,6 +126,17 @@ pub struct SetIssuer<'info> {
 }
 
 #[derive(Accounts)]
+pub struct RotateStatusRoot<'info> {
+    #[account(mut)]
+    pub issuer: Signer<'info>,
+    #[account(seeds = [REGISTRY_SEED], bump = registry.bump, has_one = issuer)]
+    pub registry: Account<'info, Registry>,
+    #[account(init_if_needed, payer = issuer, space = 8 + StatusList::INIT_SPACE, seeds = [STATUS_SEED], bump)]
+    pub status: Account<'info, StatusList>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 #[instruction(subject: Pubkey, commitment: [u8; 32], level: u8, expires_at: i64, nullifier: [u8; 32])]
 pub struct AnchorCredential<'info> {
     #[account(mut)]
@@ -166,4 +189,10 @@ pub struct CredentialAnchored {
 #[event]
 pub struct CredentialRevoked {
     pub subject: Pubkey,
+}
+
+#[event]
+pub struct StatusRootRotated {
+    pub root: [u8; 32],
+    pub version: u64,
 }

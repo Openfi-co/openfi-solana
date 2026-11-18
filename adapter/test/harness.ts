@@ -35,6 +35,7 @@ export async function createLiteSvmHarness(): Promise<
     mint: Address;
     signerOf: (address: string) => TransactionSigner;
     tokenBalance: (tokenAccount: Address) => Promise<bigint>;
+    fundWallet: (owner: string, amount: bigint) => Promise<void>;
   }
 > {
   const svm = new LiteSVM().withPrecompiles();
@@ -95,6 +96,9 @@ export async function createLiteSvmHarness(): Promise<
     async tokenBalance(account) {
       const acc = await transport.getAccount(account);
       return acc ? getTokenDecoder().decode(acc.data).amount : 0n;
+    },
+    async fundWallet(owner, amount) {
+      await mintTo(await ata(owner as Address), amount);
     },
     async newWallet() {
       const w = await generateKeyPairSigner();

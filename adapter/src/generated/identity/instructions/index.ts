@@ -10,4 +10,5 @@ export * from './anchorCredential.js';
 export * from './assertHuman.js';
 export * from './initRegistry.js';
 export * from './revokeCredential.js';
+export * from './rotateStatusRoot.js';
 export * from './setIssuer.js';

@@ -3,7 +3,9 @@ pub mod state;
 
 use anchor_lang::prelude::*;
 use anchor_lang::compat::solana_instructions_sysvar as ix_sysvar;
-use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked};
+use anchor_spl::token_interface::{
+    close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface, TransferChecked,
+};
 use openfi_identity::program::OpenfiIdentity;
 use openfi_router::program::OpenfiRouter;
 
@@ -138,6 +140,72 @@ pub mod openfi_allowance {
     pub fn revoke_mandate(ctx: Context<PrincipalOnly>) -> Result<()> {
         ctx.accounts.mandate.revoked = true;
         emit!(MandateRevoked { mandate: ctx.accounts.mandate.key() });
+        Ok(())
+    }
+
+    /// Prefund: the principal moves tokens from their own account into the
+    /// mandate's vault, for `execute_pull` to draw down.
+    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+        require!(amount > 0, AllowanceError::InvalidAmount);
+        require!(!ctx.accounts.mandate.revoked, AllowanceError::MandateRevoked);
+        transfer_checked(
+            CpiContext::new(
+                ctx.accounts.token_program.key(),
+                TransferChecked {
+                    from: ctx.accounts.principal_token.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
+                    to: ctx.accounts.vault.to_account_info(),
+                    authority: ctx.accounts.principal.to_account_info(),
+                },
+            ),
+            amount,
+            ctx.accounts.mint.decimals,
+        )?;
+        emit!(Deposited { mandate: ctx.accounts.mandate.key(), amount });
+        Ok(())
+    }
+
+    /// End a mandate for good: revoke it, pay the vault balance to the
+    /// principal and close the vault (its rent goes back to the operator, who
+    /// paid it). Needs the principal and the operator: the operator signs only
+    /// once no settlement into this vault can still be reversed by the bank.
+    ///
+    /// The mandate account itself stays, revoked, as a tombstone. Deleting it
+    /// would let the same mandate id be created again, and the old session
+    /// keys (whose accounts are derived from the mandate address) would work
+    /// again under it.
+    pub fn close(ctx: Context<Close>) -> Result<()> {
+        let balance = ctx.accounts.vault.amount;
+        let id = ctx.accounts.mandate.id;
+        let bump = ctx.accounts.mandate.bump;
+        let seeds: &[&[u8]] = &[MANDATE_SEED, &id, &[bump]];
+        if balance > 0 {
+            transfer_checked(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.key(),
+                    TransferChecked {
+                        from: ctx.accounts.vault.to_account_info(),
+                        mint: ctx.accounts.mint.to_account_info(),
+                        to: ctx.accounts.principal_token.to_account_info(),
+                        authority: ctx.accounts.mandate.to_account_info(),
+                    },
+                    &[seeds],
+                ),
+                balance,
+                ctx.accounts.mint.decimals,
+            )?;
+        }
+        close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.key(),
+            CloseAccount {
+                account: ctx.accounts.vault.to_account_info(),
+                destination: ctx.accounts.operator.to_account_info(),
+                authority: ctx.accounts.mandate.to_account_info(),
+            },
+            &[seeds],
+        ))?;
+        ctx.accounts.mandate.revoked = true;
+        emit!(MandateClosed { mandate: ctx.accounts.mandate.key(), returned: balance });
         Ok(())
     }
 
@@ -465,6 +533,37 @@ pub struct PrincipalOnly<'info> {
 }
 
 #[derive(Accounts)]
+pub struct Deposit<'info> {
+    pub principal: Signer<'info>,
+    #[account(seeds = [MANDATE_SEED, mandate.id.as_ref()], bump = mandate.bump, has_one = principal, has_one = mint)]
+    pub mandate: Account<'info, Mandate>,
+    #[account(mut, token::mint = mint, token::authority = principal, token::token_program = token_program)]
+    pub principal_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(mut, seeds = [VAULT_SEED, mandate.key().as_ref()], bump = mandate.vault_bump)]
+    pub vault: InterfaceAccount<'info, TokenAccount>,
+    pub mint: InterfaceAccount<'info, Mint>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+#[derive(Accounts)]
+pub struct Close<'info> {
+    pub principal: Signer<'info>,
+    /// Co-signs, and receives the vault's rent.
+    #[account(mut)]
+    pub operator: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump, has_one = operator)]
+    pub config: Account<'info, Config>,
+    #[account(mut, seeds = [MANDATE_SEED, mandate.id.as_ref()], bump = mandate.bump, has_one = principal, has_one = mint)]
+    pub mandate: Account<'info, Mandate>,
+    #[account(mut, token::mint = mint, token::authority = principal, token::token_program = token_program)]
+    pub principal_token: InterfaceAccount<'info, TokenAccount>,
+    #[account(mut, seeds = [VAULT_SEED, mandate.key().as_ref()], bump = mandate.vault_bump)]
+    pub vault: InterfaceAccount<'info, TokenAccount>,
+    pub mint: InterfaceAccount<'info, Mint>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+#[derive(Accounts)]
 #[instruction(pubkey: Pubkey)]
 pub struct IssueSession<'info> {
     #[account(mut)]
@@ -660,4 +759,17 @@ pub struct SettlementReturned {
     pub mandate: Pubkey,
     pub settlement: Pubkey,
     pub amount: u64,
+}
+
+#[event]
+pub struct Deposited {
+    pub mandate: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct MandateClosed {
+    pub mandate: Pubkey,
+    /// Vault balance paid back to the principal.
+    pub returned: u64,
 }
