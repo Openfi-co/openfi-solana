@@ -13,6 +13,7 @@ const SPECIAL: Record<string, ChainErrorCode> = {
   TooManyPayees: 'INVALID_AMOUNT',
   NotRestorable: 'INVALID_AMOUNT',
   InsufficientInventory: 'INSUFFICIENT_VAULT',
+  RefundExceedsSettlement: 'INVALID_AMOUNT',
 };
 
 /** Anchor framework constraint errors (has_one, seeds, signer, ...). */

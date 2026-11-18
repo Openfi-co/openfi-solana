@@ -25,7 +25,9 @@ import {
   getPullRecordDecoder,
   getRestoreAllowanceInstruction,
   getRevokeMandateInstruction,
+  getReturnSettlementInstruction,
   getRevokeSessionInstruction,
+  getUpdateMandateInstruction,
   type Mandate,
 } from './generated/allowance/index.js';
 import {
@@ -33,12 +35,22 @@ import {
   getCredentialAnchorDecoder,
   getRevokeCredentialInstruction,
 } from './generated/identity/index.js';
-import { getSettleInstruction } from './generated/router/index.js';
+import { getSettleInstruction, getSettlementDecoder, OPENFI_ROUTER_PROGRAM_ADDRESS } from './generated/router/index.js';
 import { toChainError } from './errors.js';
 import { allowancePdas, identityPdas, routerPdas, sha256 } from './pdas.js';
 import type { SolanaTransport } from './transport.js';
 
 export const ED25519_PROGRAM_ADDRESS = 'Ed25519SigVerify111111111111111111111111111' as Address;
+
+/** Fields of a live mandate the principal can change. Omitted fields stay as they are. */
+export interface MandateChanges {
+  payees?: string[];
+  perPullCap?: bigint;
+  epochCap?: bigint;
+  totalCap?: bigint;
+  expiresAt?: number;
+  requiredLevel?: IdentityLevel;
+}
 
 /** Solana mainnet-beta and devnet CAIP-2 ids. */
 export const SOLANA_MAINNET = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
@@ -164,6 +176,35 @@ export class SolanaChainAdapter implements ChainAdapter {
     ]);
   }
 
+  /**
+   * Change a live mandate. Principal-signed. The mandate's nonce goes up by
+   * one, so intents signed against the old terms fail with STALE_NONCE; the
+   * new nonce is returned for the agent's next intent. Solana-specific for now
+   * (not yet in the shared ChainAdapter interface).
+   */
+  async updateMandate(mandateId: string, c: MandateChanges): Promise<TxResult & { nonce: number }> {
+    const { address: mandate, data } = await this.loadMandate(mandateId);
+    const opt = <T>(v: T | undefined) => (v === undefined ? null : v);
+    const r = await this.submit([
+      getUpdateMandateInstruction({
+        principal: this.principal(data.principal),
+        mandate,
+        payees: opt(c.payees?.map((p) => p as Address)),
+        perPullCap: opt(c.perPullCap),
+        epochCap: opt(c.epochCap),
+        totalCap: opt(c.totalCap),
+        expiresAt: opt(c.expiresAt),
+        requiredLevel: opt(c.requiredLevel === undefined ? undefined : LEVEL[c.requiredLevel]),
+      }),
+    ]);
+    return { ...r, nonce: Number(data.nonce) + 1 };
+  }
+
+  /** Current nonce of a mandate: the value an agent's next intent must carry. */
+  async mandateNonce(mandateId: string): Promise<number> {
+    return Number((await this.loadMandate(mandateId)).data.nonce);
+  }
+
   async revokeMandate(mandateId: string): Promise<TxResult> {
     const { address: mandate, data } = await this.loadMandate(mandateId);
     return this.submit([getRevokeMandateInstruction({ principal: this.principal(data.principal), mandate })]);
@@ -256,6 +297,42 @@ export class SolanaChainAdapter implements ChainAdapter {
         amount: i.amount,
       }),
     ]);
+  }
+
+  /**
+   * Saga compensation: the bank debit behind settlement `ref` was returned, so
+   * send `amount` from the mandate's vault back to the router's inventory.
+   * Operator-signed. The router refuses a total above what `ref` settled, or
+   * from any account other than the one it paid. Solana-specific for now.
+   */
+  async returnSettlement(i: { mandateId: string; ref: string; amount: bigint }): Promise<TxResult> {
+    if (i.amount <= 0n) throw new ChainError('INVALID_AMOUNT');
+    const { address: mandate } = await this.loadMandate(i.mandateId);
+    const settlement = routerPdas.settlement(i.ref);
+    if (!(await this.t.getAccount(settlement))) throw new ChainError('INVALID_AMOUNT', `nothing settled for ref ${i.ref}`);
+    return this.submit([
+      getReturnSettlementInstruction({
+        operator: this.executor,
+        config: allowancePdas.config(),
+        mandate,
+        vault: allowancePdas.vault(mandate),
+        mint: this.mint,
+        routerConfig: routerPdas.config(),
+        routerInventory: routerPdas.inventory(),
+        settlement,
+        routerProgram: OPENFI_ROUTER_PROGRAM_ADDRESS,
+        tokenProgram: this.tokenProgram,
+        amount: i.amount,
+      }),
+    ]);
+  }
+
+  /** What a settlement paid, and how much has been refunded against it. Null if `ref` never settled. */
+  async settlement(ref: string): Promise<{ destination: string; amount: bigint; refunded: bigint } | null> {
+    const acc = await this.t.getAccount(routerPdas.settlement(ref));
+    if (!acc) return null;
+    const s = getSettlementDecoder().decode(acc.data);
+    return { destination: s.destination, amount: s.amount, refunded: s.refunded };
   }
 
   getStatus(txId: string): Promise<TxStatus> {

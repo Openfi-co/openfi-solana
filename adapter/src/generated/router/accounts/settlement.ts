@@ -12,18 +12,22 @@ export const SETTLEMENT_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([55, 
 
 export function getSettlementDiscriminatorBytes(): ReadonlyUint8Array { return fixEncoderSize(getBytesEncoder(), 8).encode(SETTLEMENT_DISCRIMINATOR); }
 
-export type Settlement = { discriminator: ReadonlyUint8Array; refHash: ReadonlyUint8Array; destination: Address; amount: bigint; settledAt: bigint; bump: number;  };
+export type Settlement = { discriminator: ReadonlyUint8Array; refHash: ReadonlyUint8Array; destination: Address; amount: bigint; settledAt: bigint; bump: number; 
+/** Total returned to inventory by `refund`. */
+refunded: bigint;  };
 
-export type SettlementArgs = { refHash: ReadonlyUint8Array; destination: Address | HasAddress; amount: number | bigint; settledAt: number | bigint; bump: number;  };
+export type SettlementArgs = { refHash: ReadonlyUint8Array; destination: Address | HasAddress; amount: number | bigint; settledAt: number | bigint; bump: number; 
+/** Total returned to inventory by `refund`. */
+refunded: number | bigint;  };
 
 /** Gets the encoder for {@link SettlementArgs} account data. */
 export function getSettlementEncoder(): FixedSizeEncoder<SettlementArgs> {
-    return transformEncoder(getStructEncoder([['discriminator', fixEncoderSize(getBytesEncoder(), 8)], ['refHash', fixEncoderSize(getBytesEncoder(), 32)], ['destination', getAddressEncoder()], ['amount', getU64Encoder()], ['settledAt', getI64Encoder()], ['bump', getU8Encoder()]]), (value) => ({ ...value, discriminator: SETTLEMENT_DISCRIMINATOR }));
+    return transformEncoder(getStructEncoder([['discriminator', fixEncoderSize(getBytesEncoder(), 8)], ['refHash', fixEncoderSize(getBytesEncoder(), 32)], ['destination', getAddressEncoder()], ['amount', getU64Encoder()], ['settledAt', getI64Encoder()], ['bump', getU8Encoder()], ['refunded', getU64Encoder()]]), (value) => ({ ...value, discriminator: SETTLEMENT_DISCRIMINATOR }));
 }
 
 /** Gets the decoder for {@link Settlement} account data. */
 export function getSettlementDecoder(): FixedSizeDecoder<Settlement> {
-    return getStructDecoder([['discriminator', fixDecoderSize(getBytesDecoder(), 8)], ['refHash', fixDecoderSize(getBytesDecoder(), 32)], ['destination', getAddressDecoder()], ['amount', getU64Decoder()], ['settledAt', getI64Decoder()], ['bump', getU8Decoder()]]);
+    return getStructDecoder([['discriminator', fixDecoderSize(getBytesDecoder(), 8)], ['refHash', fixDecoderSize(getBytesDecoder(), 32)], ['destination', getAddressDecoder()], ['amount', getU64Decoder()], ['settledAt', getI64Decoder()], ['bump', getU8Decoder()], ['refunded', getU64Decoder()]]);
 }
 
 /** Gets the codec for {@link Settlement} account data. */
@@ -76,5 +80,5 @@ export async function fetchAllMaybeSettlement(
 }
 
 export function getSettlementSize(): number {
-  return 89;
+  return 97;
 }

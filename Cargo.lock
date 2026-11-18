@@ -915,6 +915,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "openfi_identity",
+ "openfi_router",
 ]
 
 [[package]]

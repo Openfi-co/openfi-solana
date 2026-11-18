@@ -13,12 +13,14 @@ import { OPENFI_ROUTER_PROGRAM_ADDRESS } from '../programs/index.js';
 export const OPENFI_ROUTER_ERROR__INVALID_AMOUNT = 0x1770; // 6000
 /** InsufficientInventory: Router inventory is too low for this settlement */
 export const OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY = 0x1771; // 6001
+/** RefundExceedsSettlement: Refund would exceed the settled amount */
+export const OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT = 0x1772; // 6002
 
-export type OpenfiRouterError = typeof OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY | typeof OPENFI_ROUTER_ERROR__INVALID_AMOUNT;
+export type OpenfiRouterError = typeof OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY | typeof OPENFI_ROUTER_ERROR__INVALID_AMOUNT | typeof OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT;
 
 let openfiRouterErrorMessages: Record<OpenfiRouterError, string> | undefined;
 if (process.env['NODE_ENV'] !== 'production') {
-  openfiRouterErrorMessages = { [OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY]: `Router inventory is too low for this settlement`, [OPENFI_ROUTER_ERROR__INVALID_AMOUNT]: `Amount must be greater than zero` };
+  openfiRouterErrorMessages = { [OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY]: `Router inventory is too low for this settlement`, [OPENFI_ROUTER_ERROR__INVALID_AMOUNT]: `Amount must be greater than zero`, [OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT]: `Refund would exceed the settled amount` };
 }
 
 export function getOpenfiRouterErrorMessage(code: OpenfiRouterError): string {

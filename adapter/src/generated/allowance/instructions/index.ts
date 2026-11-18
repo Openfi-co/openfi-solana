@@ -12,5 +12,7 @@ export * from './executePull.js';
 export * from './initConfig.js';
 export * from './issueSession.js';
 export * from './restoreAllowance.js';
+export * from './returnSettlement.js';
 export * from './revokeMandate.js';
 export * from './revokeSession.js';
+export * from './updateMandate.js';

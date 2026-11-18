@@ -27,7 +27,16 @@ const deploy = (name: string) => fileURLToPath(new URL(`../../target/deploy/${na
  * test USDC mint, and the registry, allowance config and router initialised
  * with one OpenFi executor key in every operator role.
  */
-export async function createLiteSvmHarness(): Promise<ConformanceHarness & { adapter: SolanaChainAdapter; transport: LiteSvmTransport; executor: TransactionSigner }> {
+export async function createLiteSvmHarness(): Promise<
+  ConformanceHarness & {
+    adapter: SolanaChainAdapter;
+    transport: LiteSvmTransport;
+    executor: TransactionSigner;
+    mint: Address;
+    signerOf: (address: string) => TransactionSigner;
+    tokenBalance: (tokenAccount: Address) => Promise<bigint>;
+  }
+> {
   const svm = new LiteSVM().withPrecompiles();
   svm.addProgramFromFile(OPENFI_IDENTITY_PROGRAM_ADDRESS, deploy('openfi_identity'));
   svm.addProgramFromFile(OPENFI_ALLOWANCE_PROGRAM_ADDRESS, deploy('openfi_allowance'));
@@ -81,6 +90,12 @@ export async function createLiteSvmHarness(): Promise<ConformanceHarness & { ada
     adapter,
     transport,
     executor,
+    mint: mint.address,
+    signerOf: (a) => wallets.get(a)!,
+    async tokenBalance(account) {
+      const acc = await transport.getAccount(account);
+      return acc ? getTokenDecoder().decode(acc.data).amount : 0n;
+    },
     async newWallet() {
       const w = await generateKeyPairSigner();
       wallets.set(w.address, w);

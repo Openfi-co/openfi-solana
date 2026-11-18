@@ -14,7 +14,7 @@ default = []
 cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-log-ix-name = []
-idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "openfi_identity/idl-build"]
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "openfi_identity/idl-build", "openfi_router/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
@@ -24,6 +24,7 @@ custom-panic = []
 anchor-lang = "1.2.2"
 anchor-spl = "1.2.2"
 openfi_identity = { path = "../openfi_identity", features = ["cpi"] }
+openfi_router = { path = "../openfi_router", features = ["cpi"] }
 
 
 [lints.rust]

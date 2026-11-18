@@ -1,4 +1,4 @@
-export { SolanaChainAdapter, ed25519Instruction, ED25519_PROGRAM_ADDRESS, SOLANA_DEVNET, SOLANA_MAINNET, type SolanaAdapterOptions } from './adapter.js';
+export { SolanaChainAdapter, ed25519Instruction, ED25519_PROGRAM_ADDRESS, SOLANA_DEVNET, SOLANA_MAINNET, type MandateChanges, type SolanaAdapterOptions } from './adapter.js';
 export { LiteSvmTransport } from './litesvm-transport.js';
 export { RpcTransport } from './rpc-transport.js';
 export { TxFailure, type SentTx, type SolanaTransport } from './transport.js';

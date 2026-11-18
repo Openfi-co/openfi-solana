@@ -7,5 +7,6 @@
  */
 
 export * from './initRouter.js';
+export * from './refund.js';
 export * from './setAuthority.js';
 export * from './settle.js';

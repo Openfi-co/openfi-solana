@@ -5,6 +5,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::compat::solana_instructions_sysvar as ix_sysvar;
 use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked};
 use openfi_identity::program::OpenfiIdentity;
+use openfi_router::program::OpenfiRouter;
 
 pub use error::AllowanceError;
 pub use state::*;
@@ -83,6 +84,53 @@ pub mod openfi_allowance {
             epoch_cap: args.epoch_cap,
             epoch_seconds: args.epoch_seconds,
             expires_at: args.expires_at,
+        });
+        Ok(())
+    }
+
+    /// Change a live mandate's limits, payees, expiry or required identity
+    /// level. Principal only. Bumps the nonce, so every intent signed against
+    /// the old terms dies. Spend so far is kept; the epoch length is fixed for
+    /// the mandate's life so epochs stay aligned.
+    pub fn update_mandate(ctx: Context<PrincipalOnly>, args: UpdateMandateArgs) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        let m = &mut ctx.accounts.mandate;
+        require!(!m.revoked, AllowanceError::MandateRevoked);
+        if let Some(payees) = args.payees {
+            require!(payees.len() <= MAX_PAYEES, AllowanceError::TooManyPayees);
+            m.payees = payees;
+        }
+        if let Some(v) = args.per_pull_cap {
+            m.per_pull_cap = v;
+        }
+        if let Some(v) = args.epoch_cap {
+            m.epoch_cap = v;
+        }
+        if let Some(v) = args.total_cap {
+            m.total_cap = v;
+        }
+        if let Some(v) = args.expires_at {
+            m.expires_at = v;
+        }
+        if let Some(v) = args.required_level {
+            m.required_level = v;
+        }
+        require!(
+            m.per_pull_cap > 0
+                && m.epoch_cap > 0
+                && m.total_cap > 0
+                && m.expires_at > now
+                && m.required_level <= openfi_identity::LEVEL_BANK_VERIFIED,
+            AllowanceError::InvalidMandate
+        );
+        m.nonce = m.nonce.checked_add(1).ok_or(AllowanceError::InvalidMandate)?;
+        emit!(MandateUpdated {
+            mandate: m.key(),
+            nonce: m.nonce,
+            per_pull_cap: m.per_pull_cap,
+            epoch_cap: m.epoch_cap,
+            total_cap: m.total_cap,
+            expires_at: m.expires_at,
         });
         Ok(())
     }
@@ -210,6 +258,35 @@ pub mod openfi_allowance {
         emit!(AllowanceRestored { mandate: mandate.key(), amount: pull.amount, ref_hash: pull.ref_hash });
         Ok(())
     }
+
+    /// Saga compensation for a vault top-up: the bank debit that funded this
+    /// vault through the router was returned, so send the stablecoin back to
+    /// the router's inventory. Operator only. The router checks the vault is
+    /// the account that settlement paid and caps the total at what was settled.
+    pub fn return_settlement(ctx: Context<ReturnSettlement>, amount: u64) -> Result<()> {
+        require!(amount > 0, AllowanceError::InvalidAmount);
+        require!(ctx.accounts.vault.amount >= amount, AllowanceError::InsufficientVault);
+        let id = ctx.accounts.mandate.id;
+        let seeds: &[&[u8]] = &[MANDATE_SEED, &id, &[ctx.accounts.mandate.bump]];
+        openfi_router::cpi::refund(
+            CpiContext::new_with_signer(
+                ctx.accounts.router_program.key(),
+                openfi_router::cpi::accounts::Refund {
+                    source_authority: ctx.accounts.mandate.to_account_info(),
+                    config: ctx.accounts.router_config.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
+                    inventory: ctx.accounts.router_inventory.to_account_info(),
+                    settlement: ctx.accounts.settlement.to_account_info(),
+                    source: ctx.accounts.vault.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+                &[seeds],
+            ),
+            amount,
+        )?;
+        emit!(SettlementReturned { mandate: ctx.accounts.mandate.key(), settlement: ctx.accounts.settlement.key(), amount });
+        Ok(())
+    }
 }
 
 /// Every pull check, in fixed order. Returns the epoch the spend landed in.
@@ -325,6 +402,17 @@ pub struct CreateMandateArgs {
     pub expires_at: i64,
     pub required_level: u8,
     pub nonce: u64,
+}
+
+/// `None` leaves a field unchanged.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct UpdateMandateArgs {
+    pub payees: Option<Vec<Pubkey>>,
+    pub per_pull_cap: Option<u64>,
+    pub epoch_cap: Option<u64>,
+    pub total_cap: Option<u64>,
+    pub expires_at: Option<i64>,
+    pub required_level: Option<u8>,
 }
 
 #[derive(Accounts)]
@@ -484,12 +572,44 @@ pub struct RestoreAllowance<'info> {
     pub session: Account<'info, SessionKey>,
 }
 
+#[derive(Accounts)]
+pub struct ReturnSettlement<'info> {
+    pub operator: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump, has_one = operator)]
+    pub config: Account<'info, Config>,
+    #[account(seeds = [MANDATE_SEED, mandate.id.as_ref()], bump = mandate.bump, has_one = mint)]
+    pub mandate: Account<'info, Mandate>,
+    #[account(mut, seeds = [VAULT_SEED, mandate.key().as_ref()], bump = mandate.vault_bump)]
+    pub vault: InterfaceAccount<'info, TokenAccount>,
+    pub mint: InterfaceAccount<'info, Mint>,
+    /// CHECK: validated by the router (its config PDA).
+    pub router_config: UncheckedAccount<'info>,
+    /// CHECK: validated by the router (its inventory PDA).
+    #[account(mut)]
+    pub router_inventory: UncheckedAccount<'info>,
+    /// CHECK: validated by the router (the settlement record for this ref).
+    #[account(mut)]
+    pub settlement: UncheckedAccount<'info>,
+    pub router_program: Program<'info, OpenfiRouter>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
 #[event]
 pub struct MandateCreated {
     pub mandate: Pubkey,
     pub principal: Pubkey,
     pub epoch_cap: u64,
     pub epoch_seconds: i64,
+    pub expires_at: i64,
+}
+
+#[event]
+pub struct MandateUpdated {
+    pub mandate: Pubkey,
+    pub nonce: u64,
+    pub per_pull_cap: u64,
+    pub epoch_cap: u64,
+    pub total_cap: u64,
     pub expires_at: i64,
 }
 
@@ -533,4 +653,11 @@ pub struct AllowanceRestored {
     pub mandate: Pubkey,
     pub amount: u64,
     pub ref_hash: [u8; 32],
+}
+
+#[event]
+pub struct SettlementReturned {
+    pub mandate: Pubkey,
+    pub settlement: Pubkey,
+    pub amount: u64,
 }
