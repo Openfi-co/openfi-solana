@@ -114,6 +114,12 @@ export class RpcTransport implements SolanaTransport {
     return `https://explorer.solana.com/tx/${signature}${this.cluster === 'devnet' ? '?cluster=devnet' : ''}`;
   }
 
+  /** Newest-first signatures touching an address (e.g. a settlement record). */
+  async signaturesFor(address: Address, limit = 10): Promise<string[]> {
+    const res = await this.call(this.rpc.getSignaturesForAddress(address, { limit, commitment: 'confirmed' }));
+    return res.map((r) => r.signature);
+  }
+
   /** Raw confirmed transaction, for archiving evidence. */
   rawTransaction(signature: string): Promise<unknown> {
     return this.fetchTransaction(signature as Signature);

@@ -1,0 +1,74 @@
+{
+  "blockTime": "1795023058",
+  "meta": {
+    "computeUnitsConsumed": "4634",
+    "costUnits": "6756",
+    "err": null,
+    "fee": "10000",
+    "innerInstructions": [],
+    "loadedAddresses": {
+      "readonly": [],
+      "writable": []
+    },
+    "logMessages": [
+      "Program 9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B invoke [1]",
+      "Program log: Instruction: RevokeMandate",
+      "Program data: 5G+1PMw6gxxWxfWrjSeXFyMVHPeDossx7yhZDaiwJfGPW+BSNEK1UQ==",
+      "Program 9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B consumed 4634 of 200000 compute units",
+      "Program 9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B success"
+    ],
+    "postBalances": [
+      "6406927090",
+      "0",
+      "2885440",
+      "833120"
+    ],
+    "postTokenBalances": [],
+    "preBalances": [
+      "6406937090",
+      "0",
+      "2885440",
+      "833120"
+    ],
+    "preTokenBalances": [],
+    "rewards": [],
+    "status": {
+      "Ok": null
+    }
+  },
+  "slot": "523705920",
+  "transaction": {
+    "message": {
+      "accountKeys": [
+        "XMWYxRtQg3M9bAYD2MJFsBGzwFrwcERfhcmTYSayEAD",
+        "5z1aujggu82K6ZxotDdghiK5pcixuKSunv8GLCnCbH1Y",
+        "6qj92znyD55YUGKTBXmSpHc9RmasV7PtcUtMPw5yp6SU",
+        "9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B"
+      ],
+      "addressTableLookups": [],
+      "header": {
+        "numReadonlySignedAccounts": 1,
+        "numReadonlyUnsignedAccounts": 1,
+        "numRequiredSignatures": 2
+      },
+      "instructions": [
+        {
+          "accounts": [
+            1,
+            2
+          ],
+          "data": "jDQv4pd7cHH",
+          "programIdIndex": 3,
+          "stackHeight": 1
+        }
+      ],
+      "recentBlockhash": "9mHdbQPUzKVtHntEw8kzLYZHf5W6cygXzdMBG1tbb3L5"
+    },
+    "signatures": [
+      "WX5Jd1DV9RcETm2BkTYMFa5CoUkVy2XQMAFcPC5yxxDnj27a438Rf7Jf8biPXjhCYgwDLLeKxrCLGV29RV5wo7A",
+      "4fYX3zAkmj9S4KbgASexxGZj1ZBp9jfU5VGEULDL1EBWGg4VQVJnHjywzp8BTCPdLi2VYNYkBQeS68eLX8P1X4Zg"
+    ]
+  },
+  "transactionIndex": "13",
+  "version": 0
+}

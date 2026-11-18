@@ -3,6 +3,8 @@
 // submitted anyway, so the rejection is a failed transaction on the ledger.
 //
 //   OPENFI_KEY=~/.config/solana/openfi-devnet.json npm run demo
+//   BANK_DEBIT=1 npm run demo     a Flick sandbox bank debit funds the vault; needs
+//                                 the sandbox and scripts/settle-server.ts running
 //
 // The key is OpenFi's executor: it pays fees and acts as identity issuer,
 // allowance operator and router authority. It must hold devnet SOL and USDC.
@@ -31,6 +33,7 @@ import { getInitRegistryInstruction } from '../src/generated/identity/index.js';
 import { getInitRouterInstruction } from '../src/generated/router/index.js';
 import { allowancePdas, identityPdas, routerPdas } from '../src/pdas.js';
 import { RpcTransport } from '../src/rpc-transport.js';
+import { debitLinked, describeDebit, linkBank, maskedAccount, type Link } from './start-debit.js';
 
 const USDC = address('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'); // Circle devnet USDC
 const RPC = process.env.SOLANA_RPC ?? 'https://api.devnet.solana.com';
@@ -42,8 +45,8 @@ const executor = await createKeyPairSignerFromBytes(new Uint8Array(JSON.parse(re
 const wallets = new Map<string, TransactionSigner>();
 const adapter = new SolanaChainAdapter({ transport: t, executor, mint: USDC, chainId: SOLANA_DEVNET, signerFor: (a) => wallets.get(a) });
 
-const run = new Date().toISOString().slice(0, 10);
-const evidenceDir = new URL(`../../evidence/devnet-${run}/`, import.meta.url).pathname;
+const run = new Date().toISOString().slice(0, 16).replace('T', '-').replace(':', '');
+const evidenceDir = new URL(`../../evidence/devnet-${run}${process.env.BANK_DEBIT ? '-flick-debit' : ''}/`, import.meta.url).pathname;
 mkdirSync(evidenceDir, { recursive: true });
 const rows: { step: string; result: string; signature: string }[] = [];
 
@@ -83,15 +86,25 @@ if (!(await t.getAccount(identityPdas.registry()))) {
   await save('Initialise registry, allowance config, router (USDC)', 'accepted', signature);
 }
 
-// Fund the router's float from the executor's USDC.
+// Top the router's float up to 10 USDC from the executor's USDC.
 const inventory = routerPdas.inventory();
-const float = async () => getTokenDecoder().decode((await t.getAccount(inventory))!.data).amount;
-if ((await float()) < usd('10')) {
+const tokenBalance = async (a: Address) => {
+  const acc = await t.getAccount(a);
+  return acc ? getTokenDecoder().decode(acc.data).amount : 0n;
+};
+const shortfall = usd('10') - (await tokenBalance(inventory));
+if (shortfall > 0n) {
   const { signature } = await send([
-    getTransferCheckedInstruction({ source: await ata(executor.address), mint: USDC, destination: inventory, authority: executor, amount: usd('12'), decimals: 6 }),
+    getTransferCheckedInstruction({ source: await ata(executor.address), mint: USDC, destination: inventory, authority: executor, amount: shortfall, decimals: 6 }),
   ]);
-  await save('Fund router float: 12 USDC', 'accepted', signature);
+  await save(`Fund router float: ${Number(shortfall) / 1e6} USDC`, 'accepted', signature);
 }
+
+// BANK_DEBIT=1: the principal links their (sandbox) bank account first; a bank
+// debit then funds the mandate's vault through the router.
+const BANK_API_BASE = process.env.BANK_API_BASE ?? 'http://127.0.0.1:43181';
+const link: Link | null = process.env.BANK_DEBIT ? await linkBank({ base: BANK_API_BASE, usd: 10 }) : null;
+if (link) console.log(`Bank account linked (Flick sandbox, simulated bank): ${maskedAccount(link)}\n`);
 
 // ------------------------------------------------------------------ actors (no SOL: the executor pays)
 
@@ -121,7 +134,22 @@ await record('Mandate: $50/day, $10 per pull, 1 payee', adapter.createMandate(aw
 await record('Agent session key issued ($50/day)', adapter.issueSession({ mandateId, sessionPubkey: agent.pubkey, subCap: usd('50'), expiresAt: (await t.now()) + 30 * 86400 }));
 
 const vault = allowancePdas.vault(allowancePdas.mandate(mandateId));
-await record('Bank debit cleared: router settles 10 USDC to vault', adapter.settle({ ref: `chg_demo_${randomUUID()}`, destination: vault, amount: usd('10') }));
+if (link) {
+  // A real sandbox debit. The sandbox fires a signed `paid` webhook at
+  // settle-server.ts, which settles through the router; wait for it to land.
+  const payment = await debitLinked(link, mandateId);
+  console.log(`Flick sandbox bank debit: ${describeDebit(payment, link)}`);
+  const settlement = routerPdas.settlement(payment.chargeId);
+  const deadline = Date.now() + 120_000;
+  while (!(await t.getAccount(settlement))) {
+    if (Date.now() > deadline) throw new Error(`no settlement for ${payment.chargeId}: is settle-server.ts running and registered with the sandbox?`);
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  const [sig] = await t.signaturesFor(settlement, 1);
+  await save(`Bank debit ${payment.chargeId} cleared: router settles 10 USDC to vault`, 'accepted', sig!);
+} else {
+  await record('Bank debit cleared: router settles 10 USDC to vault', adapter.settle({ ref: `chg_demo_${randomUUID()}`, destination: vault, amount: usd('10') }));
+}
 
 async function pull(kind: 'execute' | 'authorize', amount: string) {
   const intent: PullIntent = { mandateId, payee: merchant.address, amount: usd(amount), ref: `pull_${randomUUID()}`, nonce: 0, expiresAt: (await t.now()) + 300 };
@@ -135,7 +163,7 @@ await record('Pull 6: $10, over the $50/day cap', pull('authorize', '10'), 'EPOC
 await record('Principal revokes the mandate', adapter.revokeMandate(mandateId));
 await record('Pull 7: $1 after revocation', pull('authorize', '1'), 'MANDATE_REVOKED');
 
-const merchantUsdc = getTokenDecoder().decode((await t.getAccount(await ata(merchant.address)))!.data).amount;
+const merchantUsdc = await tokenBalance(await ata(merchant.address));
 console.log(`\nmerchant USDC balance: ${Number(merchantUsdc) / 1e6}`);
 
 // ------------------------------------------------------------------ evidence index
