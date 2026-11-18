@@ -5,6 +5,7 @@
 //   OPENFI_KEY=~/.config/solana/openfi-devnet.json npm run demo
 //   BANK_DEBIT=1 npm run demo     a Flick sandbox bank debit funds the vault; needs
 //                                 the sandbox and scripts/settle-server.ts running
+//   PAUSE=1                       stop after the vault is funded until Enter (for recording)
 //
 // The key is OpenFi's executor: it pays fees and acts as identity issuer,
 // allowance operator and router authority. It must hold devnet SOL and USDC.
@@ -149,6 +150,12 @@ if (link) {
   await save(`Bank debit ${payment.chargeId} cleared: router settles 10 USDC to vault`, 'accepted', sig!);
 } else {
   await record('Bank debit cleared: router settles 10 USDC to vault', adapter.settle({ ref: `chg_demo_${randomUUID()}`, destination: vault, amount: usd('10') }));
+}
+
+if (process.env.PAUSE) {
+  process.stdout.write('\nPress Enter to continue...');
+  await new Promise<void>((r) => process.stdin.once('data', () => r()));
+  process.stdin.pause();
 }
 
 async function pull(kind: 'execute' | 'authorize', amount: string) {
