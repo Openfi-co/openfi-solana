@@ -1,0 +1,43 @@
+{
+  "name": "@openfi/solana-adapter",
+  "version": "0.1.0",
+  "description": "OpenFi ChainAdapter for Solana: the identity, allowance and router programs behind the shared OpenFi interface.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "codegen": "tsx scripts/codegen.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@openfi/chain-interface": "file:../../openfi-core/packages/chain-interface",
+    "@solana-program/system": "^0.16.0",
+    "@solana-program/token": "^0.18.0",
+    "@solana/kit": "^8.6.0",
+    "@solana/program-client-core": "^8.6.0"
+  },
+  "devDependencies": {
+    "@codama/nodes-from-anchor": "^1.5.6",
+    "@codama/renderers-js": "^2.9.0",
+    "@openfi/chain-conformance": "file:../../openfi-core/packages/chain-conformance",
+    "@types/node": "^22.20.5",
+    "codama": "^1.11.0",
+    "litesvm": "^1.6.2",
+    "tsx": "^4.23.15",
+    "typescript": "5.9",
+    "vitest": "^4.0.18"
+  }
+}
