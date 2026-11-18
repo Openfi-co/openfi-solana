@@ -325,8 +325,17 @@ export class SolanaChainAdapter implements ChainAdapter {
     return s;
   }
 
-  /** A wallet's associated token account; PAYEE_NOT_READY if it does not exist yet. */
+  /**
+   * Where to pay `owner`: the address itself if it is already a token account
+   * for this mint (a mandate vault), else the wallet's associated token
+   * account. PAYEE_NOT_READY if neither exists yet.
+   */
   private async tokenAccount(owner: Address): Promise<Address> {
+    const direct = await this.t.getAccount(owner);
+    if (direct && direct.owner === this.tokenProgram && direct.data.length >= 165) {
+      const mint = getAddressDecoder().decode(direct.data.subarray(0, 32));
+      if (mint === this.mint) return owner;
+    }
     const [ata] = await findAssociatedTokenPda({ owner, mint: this.mint, tokenProgram: this.tokenProgram });
     if (!(await this.t.getAccount(ata))) throw new ChainError('PAYEE_NOT_READY', `${owner} has no token account for ${this.mint}`);
     return ata;

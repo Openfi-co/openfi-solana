@@ -16,7 +16,8 @@
     "codegen": "tsx scripts/codegen.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "demo": "tsx scripts/demo.ts"
   },
   "engines": {
     "node": ">=20"

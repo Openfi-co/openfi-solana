@@ -1,0 +1,138 @@
+{
+  "blockTime": "1795022197",
+  "meta": {
+    "computeUnitsConsumed": "24800",
+    "costUnits": "29341",
+    "err": {
+      "InstructionError": [
+        "1",
+        {
+          "Custom": "6001"
+        }
+      ]
+    },
+    "fee": "10000",
+    "innerInstructions": [
+      {
+        "index": 1,
+        "instructions": [
+          {
+            "accounts": [
+              0,
+              3
+            ],
+            "data": "11118MUvuqjEssFmKEetJ4ebSh3w6cAMQHUy45LmFiPiXH9qMLq3n6CcMWcb8JKPfBjxqo",
+            "programIdIndex": 4,
+            "stackHeight": 2
+          }
+        ]
+      }
+    ],
+    "loadedAddresses": {
+      "readonly": [],
+      "writable": []
+    },
+    "logMessages": [
+      "Program 9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B invoke [1]",
+      "Program log: Instruction: AuthorizePull",
+      "Program 11111111111111111111111111111111 invoke [2]",
+      "Program 11111111111111111111111111111111 success",
+      "Program log: AnchorError thrown in programs/openfi_allowance/src/lib.rs:229. Error Code: MandateRevoked. Error Number: 6001. Error Message: Mandate has been revoked.",
+      "Program 9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B consumed 24800 of 203000 compute units",
+      "Program 9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B failed: custom program error: 0x1771"
+    ],
+    "postBalances": [
+      "6437211330",
+      "1188720",
+      "2885440",
+      "0",
+      "1",
+      "0",
+      "833120",
+      "833120",
+      "1",
+      "1275080",
+      "0"
+    ],
+    "postTokenBalances": [],
+    "preBalances": [
+      "6437221330",
+      "1188720",
+      "2885440",
+      "0",
+      "1",
+      "0",
+      "833120",
+      "833120",
+      "1",
+      "1275080",
+      "0"
+    ],
+    "preTokenBalances": [],
+    "rewards": [],
+    "status": {
+      "Err": {
+        "InstructionError": [
+          "1",
+          {
+            "Custom": "6001"
+          }
+        ]
+      }
+    }
+  },
+  "slot": "523702332",
+  "transaction": {
+    "message": {
+      "accountKeys": [
+        "XMWYxRtQg3M9bAYD2MJFsBGzwFrwcERfhcmTYSayEAD",
+        "2rPBNaAjwQCS4d5rLF1DTiMNCQmv6zofMWbtB8mKCyNk",
+        "DXRQZcLHWy3xVo2M2heCekQbD3MnaAegrKcLrBBT7KLp",
+        "GCipfKzBnxbf9DHxKRCinMtMLQJpP6pq7QctiEp9D2dW",
+        "11111111111111111111111111111111",
+        "6cEXUjWvCG24NyC71eHi3bKbVqWeQP9X5HXe1btJ7kn8",
+        "8LeyKvcY9XkHYt6WePMdwc8cpRHCoXsVqkXY1QJ7Q5Yo",
+        "9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B",
+        "Ed25519SigVerify111111111111111111111111111",
+        "Fy5ZBFbA7hnnaVxnZ1AfR8j72kk2X3hdfdiJX3cWCPaR",
+        "Sysvar1nstructions1111111111111111111111111"
+      ],
+      "addressTableLookups": [],
+      "header": {
+        "numReadonlySignedAccounts": 0,
+        "numReadonlyUnsignedAccounts": 7,
+        "numRequiredSignatures": 1
+      },
+      "instructions": [
+        {
+          "accounts": [],
+          "data": "BpTpCRZskpSgjgt9zpbwE5P8XJAUK7efJYddqLkwmSGxHdyBN6A2oturUp85MbDWseHWQGqpResxkRPzhrhhxQ1D5SaskFpR7zjdCkSmWTTejr2b9yzHjpgXZ9prqbdeNzJWkjdF3gFsAvGNNEJLKsVvok3QoHTiAGQSZHak2riubksP26aUVEtB33ywgWEXap1nX9WSib5m7gEhuf2kkaVv48a4YknMjhXPrryvLshp4t5EgMd6TvnfPhyfqYboY86YSLf2GfVg1VHr5x5vrspA2LLSW6bpbu464A82e5UG8Gbqc2AkmVUhh8DMqJ9aGtYHtzgYarjU9tT",
+          "programIdIndex": 8,
+          "stackHeight": 1
+        },
+        {
+          "accounts": [
+            0,
+            2,
+            1,
+            3,
+            5,
+            9,
+            10,
+            6,
+            4
+          ],
+          "data": "LnfaCkXWF8AmsryapYeQsGANmc1TSp5gE6yFMijCzt5UJU3pWX2iKX7QqkDFSDUpppv8J8FgQzjwWVDN15HtHnTr56frrBHEHoiqRFMn3EpR8WpwGBu6g4JKw69R7AyQtUjuahygyoQAfFdXqdAUFLYNgTtiBqDNmNmJDG2zJk8jpAT",
+          "programIdIndex": 7,
+          "stackHeight": 1
+        }
+      ],
+      "recentBlockhash": "3GWNvvnHGBJP2bcAzXB8KJG5STzWp4jDPPzgcyUyufZj"
+    },
+    "signatures": [
+      "3LEYsrWQbGahDgMma6UQKLzF5H7Phw3zVACHPtdxoxG1BogkdDJ7mCwheTv8estPuC7xHfXPSFma6AkuSTed6pdZ"
+    ]
+  },
+  "transactionIndex": "11",
+  "version": 0
+}

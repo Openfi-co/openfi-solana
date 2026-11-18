@@ -1,0 +1,74 @@
+{
+  "blockTime": "1795022195",
+  "meta": {
+    "computeUnitsConsumed": "4634",
+    "costUnits": "6756",
+    "err": null,
+    "fee": "10000",
+    "innerInstructions": [],
+    "loadedAddresses": {
+      "readonly": [],
+      "writable": []
+    },
+    "logMessages": [
+      "Program 9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B invoke [1]",
+      "Program log: Instruction: RevokeMandate",
+      "Program data: 5G+1PMw6gxy6F0N8eGTvsrA5b1sWNEFkYKovZ72DJIhKh/1UQri71Q==",
+      "Program 9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B consumed 4634 of 200000 compute units",
+      "Program 9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B success"
+    ],
+    "postBalances": [
+      "6437221330",
+      "0",
+      "2885440",
+      "833120"
+    ],
+    "postTokenBalances": [],
+    "preBalances": [
+      "6437231330",
+      "0",
+      "2885440",
+      "833120"
+    ],
+    "preTokenBalances": [],
+    "rewards": [],
+    "status": {
+      "Ok": null
+    }
+  },
+  "slot": "523702322",
+  "transaction": {
+    "message": {
+      "accountKeys": [
+        "XMWYxRtQg3M9bAYD2MJFsBGzwFrwcERfhcmTYSayEAD",
+        "FPkWvPA3gPPY9N4onPXc3vxWpQdXLNEUYReUe6Pu5XCq",
+        "DXRQZcLHWy3xVo2M2heCekQbD3MnaAegrKcLrBBT7KLp",
+        "9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B"
+      ],
+      "addressTableLookups": [],
+      "header": {
+        "numReadonlySignedAccounts": 1,
+        "numReadonlyUnsignedAccounts": 1,
+        "numRequiredSignatures": 2
+      },
+      "instructions": [
+        {
+          "accounts": [
+            1,
+            2
+          ],
+          "data": "jDQv4pd7cHH",
+          "programIdIndex": 3,
+          "stackHeight": 1
+        }
+      ],
+      "recentBlockhash": "CrK8iBBtJsqTVPFmbo25YNJr4QSY85Ah2EiLMT9ge1eN"
+    },
+    "signatures": [
+      "4D2MT3Jy7uupWw3Er4Lj4TtyR52th32jo8jeMCPLvGJn3NytLu6fj8UPFukGVkbDA32rCxNnC7agvwo5qioBGmXD",
+      "3Q9sr2TeNfHAs8a8uBSeRpdWPwtaYJ7Vt8htGNXpJpwySRgx8KmyvYgxpZCV9THsAPPwxKywx2PK516ec6z6pgCB"
+    ]
+  },
+  "transactionIndex": "12",
+  "version": 0
+}

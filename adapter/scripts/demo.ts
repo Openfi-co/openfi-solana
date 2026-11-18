@@ -1,0 +1,158 @@
+// Devnet demo: the build plan's scenario on the deployed programs, with real
+// (devnet) USDC. Every step prints an Explorer link; rejected steps are
+// submitted anyway, so the rejection is a failed transaction on the ledger.
+//
+//   OPENFI_KEY=~/.config/solana/openfi-devnet.json npm run demo
+//
+// The key is OpenFi's executor: it pays fees and acts as identity issuer,
+// allowance operator and router authority. It must hold devnet SOL and USDC.
+import { randomBytes, randomUUID } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import {
+  address,
+  createKeyPairSignerFromBytes,
+  generateKeyPairSigner,
+  type Address,
+  type TransactionSigner,
+} from '@solana/kit';
+import {
+  findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
+  getTokenDecoder,
+  getTransferCheckedInstruction,
+  TOKEN_PROGRAM_ADDRESS,
+} from '@solana-program/token';
+import { newSessionKey } from '@openfi/chain-conformance';
+import { ChainError, toBaseUnits, type PullIntent } from '@openfi/chain-interface';
+import { SolanaChainAdapter, SOLANA_DEVNET } from '../src/adapter.js';
+import { getInitConfigInstruction } from '../src/generated/allowance/index.js';
+import { getInitRegistryInstruction } from '../src/generated/identity/index.js';
+import { getInitRouterInstruction } from '../src/generated/router/index.js';
+import { allowancePdas, identityPdas, routerPdas } from '../src/pdas.js';
+import { RpcTransport } from '../src/rpc-transport.js';
+
+const USDC = address('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'); // Circle devnet USDC
+const RPC = process.env.SOLANA_RPC ?? 'https://api.devnet.solana.com';
+const keyPath = (process.env.OPENFI_KEY ?? '~/.config/solana/openfi-devnet.json').replace(/^~/, homedir());
+const usd = (a: string) => toBaseUnits(a, 6);
+
+const t = new RpcTransport(RPC, 'devnet');
+const executor = await createKeyPairSignerFromBytes(new Uint8Array(JSON.parse(readFileSync(keyPath, 'utf8'))));
+const wallets = new Map<string, TransactionSigner>();
+const adapter = new SolanaChainAdapter({ transport: t, executor, mint: USDC, chainId: SOLANA_DEVNET, signerFor: (a) => wallets.get(a) });
+
+const run = new Date().toISOString().slice(0, 10);
+const evidenceDir = new URL(`../../evidence/devnet-${run}/`, import.meta.url).pathname;
+mkdirSync(evidenceDir, { recursive: true });
+const rows: { step: string; result: string; signature: string }[] = [];
+
+async function record(step: string, p: Promise<{ txId: string | null; status: string }>, expectReject?: string) {
+  try {
+    const r = await p;
+    if (expectReject) throw new Error(`${step}: expected ${expectReject}, but it succeeded`);
+    if (!r.txId) throw new Error(`${step}: nothing was submitted (${r.status})`);
+    await save(step, 'accepted', r.txId);
+  } catch (e) {
+    if (!(e instanceof ChainError) || !expectReject) throw e;
+    if (e.code !== expectReject) throw new Error(`${step}: expected ${expectReject}, got ${e.code}`);
+    if (!e.txId) throw new Error(`${step}: rejected off-chain; the demo needs an on-chain rejection`);
+    await save(step, `rejected on-chain: ${e.code}`, e.txId);
+  }
+}
+
+async function save(step: string, result: string, signature: string) {
+  rows.push({ step, result, signature });
+  writeFileSync(`${evidenceDir}${String(rows.length).padStart(2, '0')}-${signature}.json`, JSON.stringify(await t.rawTransaction(signature), (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 2));
+  console.log(`${result.startsWith('rejected') ? '✗' : '✓'} ${step.padEnd(52)} ${result}\n    ${t.explorerUrl(signature)}`);
+}
+
+const send = (ixs: Parameters<typeof t.send>[0]) => t.send(ixs, [executor]);
+const ata = async (owner: Address) => (await findAssociatedTokenPda({ owner, mint: USDC, tokenProgram: TOKEN_PROGRAM_ADDRESS }))[0];
+const hex32 = () => randomBytes(32).toString('hex');
+
+// ------------------------------------------------------------------ setup (idempotent)
+
+console.log(`executor ${executor.address}\n`);
+if (!(await t.getAccount(identityPdas.registry()))) {
+  const { signature } = await send([
+    getInitRegistryInstruction({ admin: executor, registry: identityPdas.registry(), issuer: executor.address }),
+    getInitConfigInstruction({ admin: executor, config: allowancePdas.config(), operator: executor.address }),
+    getInitRouterInstruction({ admin: executor, config: routerPdas.config(), mint: USDC, inventory: routerPdas.inventory(), authority: executor.address }),
+  ]);
+  await save('Initialise registry, allowance config, router (USDC)', 'accepted', signature);
+}
+
+// Fund the router's float from the executor's USDC.
+const inventory = routerPdas.inventory();
+const float = async () => getTokenDecoder().decode((await t.getAccount(inventory))!.data).amount;
+if ((await float()) < usd('10')) {
+  const { signature } = await send([
+    getTransferCheckedInstruction({ source: await ata(executor.address), mint: USDC, destination: inventory, authority: executor, amount: usd('12'), decimals: 6 }),
+  ]);
+  await save('Fund router float: 12 USDC', 'accepted', signature);
+}
+
+// ------------------------------------------------------------------ actors (no SOL: the executor pays)
+
+const principal = await generateKeyPairSigner();
+const merchant = await generateKeyPairSigner();
+const bot = await generateKeyPairSigner();
+for (const w of [principal, merchant, bot]) wallets.set(w.address, w);
+const agent = newSessionKey();
+console.log(`principal ${principal.address}\nmerchant  ${merchant.address}\nbot       ${bot.address}\n`);
+
+await record('Anchor credential: principal (bank-verified)', adapter.anchorCredential({ subject: principal.address, commitment: hex32(), level: 'bank_verified', expiresAt: (await t.now()) + 365 * 86400, nullifier: hex32() }));
+await record('Anchor credential: merchant (bank-verified)', adapter.anchorCredential({ subject: merchant.address, commitment: hex32(), level: 'bank_verified', expiresAt: (await t.now()) + 365 * 86400, nullifier: hex32() }));
+await send([getCreateAssociatedTokenIdempotentInstruction({ payer: executor, ata: await ata(merchant.address), owner: merchant.address, mint: USDC })]);
+
+// ------------------------------------------------------------------ scenario
+
+const terms = async (mandateId: string, who: Address) => ({
+  mandateId, principal: who, token: USDC, payees: [merchant.address],
+  perPullCap: usd('10'), epochSeconds: 86400, epochCap: usd('50'), totalCap: usd('1500'),
+  expiresAt: (await t.now()) + 30 * 86400, requiredLevel: 'bank_verified' as const, nonce: 0,
+});
+
+await record('Bot wallet (no credential) creates a mandate', adapter.createMandate(await terms(`mnd_bot_${randomUUID()}`, bot.address)), 'IDENTITY_REQUIRED');
+
+const mandateId = `mnd_${randomUUID()}`;
+await record('Mandate: $50/day, $10 per pull, 1 payee', adapter.createMandate(await terms(mandateId, principal.address)));
+await record('Agent session key issued ($50/day)', adapter.issueSession({ mandateId, sessionPubkey: agent.pubkey, subCap: usd('50'), expiresAt: (await t.now()) + 30 * 86400 }));
+
+const vault = allowancePdas.vault(allowancePdas.mandate(mandateId));
+await record('Bank debit cleared: router settles 10 USDC to vault', adapter.settle({ ref: `chg_demo_${randomUUID()}`, destination: vault, amount: usd('10') }));
+
+async function pull(kind: 'execute' | 'authorize', amount: string) {
+  const intent: PullIntent = { mandateId, payee: merchant.address, amount: usd(amount), ref: `pull_${randomUUID()}`, nonce: 0, expiresAt: (await t.now()) + 300 };
+  const signed = { intent, sessionPubkey: agent.pubkey, signature: agent.sign(adapter.encodeIntent(intent)) };
+  return kind === 'execute' ? adapter.executePull(signed) : adapter.authorizePull(signed);
+}
+
+await record('Pull 1: $10 USDC vault → merchant (execute_pull)', pull('execute', '10'));
+for (let i = 2; i <= 5; i++) await record(`Pull ${i}: $10 (authorize_pull, bank side)`, pull('authorize', '10'));
+await record('Pull 6: $10, over the $50/day cap', pull('authorize', '10'), 'EPOCH_CAP_EXCEEDED');
+await record('Principal revokes the mandate', adapter.revokeMandate(mandateId));
+await record('Pull 7: $1 after revocation', pull('authorize', '1'), 'MANDATE_REVOKED');
+
+const merchantUsdc = getTokenDecoder().decode((await t.getAccount(await ata(merchant.address)))!.data).amount;
+console.log(`\nmerchant USDC balance: ${Number(merchantUsdc) / 1e6}`);
+
+// ------------------------------------------------------------------ evidence index
+
+const md = [
+  `# Devnet run ${run}`,
+  '',
+  `Programs: identity \`8LeyKvcY9XkHYt6WePMdwc8cpRHCoXsVqkXY1QJ7Q5Yo\`, allowance \`9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B\`, router \`d85jMjdA3wUtjeD1wBuAarMMcYczSmNyWajJSxpW7UL\`. Token: Circle devnet USDC \`${USDC}\`.`,
+  '',
+  `Mandate \`${allowancePdas.mandate(mandateId)}\` · principal \`${principal.address}\` · merchant \`${merchant.address}\` · bot \`${bot.address}\``,
+  '',
+  '| # | Step | Result | Transaction |',
+  '|---|---|---|---|',
+  ...rows.map((r, i) => `| ${i + 1} | ${r.step} | ${r.result} | [${r.signature.slice(0, 8)}…](${t.explorerUrl(r.signature)}) |`),
+  '',
+  `Merchant USDC after the run: ${Number(merchantUsdc) / 1e6}`,
+  '',
+];
+writeFileSync(`${evidenceDir}README.md`, md.join('\n'));
+console.log(`evidence: ${evidenceDir}`);
