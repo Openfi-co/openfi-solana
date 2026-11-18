@@ -166,6 +166,16 @@ await record('Pull 7: $1 after revocation', pull('authorize', '1'), 'MANDATE_REV
 const merchantUsdc = await tokenBalance(await ata(merchant.address));
 console.log(`\nmerchant USDC balance: ${Number(merchantUsdc) / 1e6}`);
 
+// The demo merchant is a throwaway wallet; return its USDC to the executor so
+// the next run can reuse it (devnet USDC is rate-limited at the faucet). Not
+// part of the evidence.
+if (merchantUsdc > 0n) {
+  await send([
+    getTransferCheckedInstruction({ source: await ata(merchant.address), mint: USDC, destination: await ata(executor.address), authority: merchant, amount: merchantUsdc, decimals: 6 }),
+  ]);
+  console.log(`returned ${Number(merchantUsdc) / 1e6} USDC from the demo merchant to the executor`);
+}
+
 // ------------------------------------------------------------------ evidence index
 
 const md = [
