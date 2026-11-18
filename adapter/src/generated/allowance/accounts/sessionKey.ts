@@ -18,7 +18,9 @@ pubkey: Address;
 /** Per-epoch spend limit for this key, never above the mandate's. */
 subCap: bigint; expiresAt: bigint; revoked: boolean; spentEpoch: bigint; 
 /** The mandate epoch `spent_epoch` belongs to. */
-epochStart: bigint; bump: number;  };
+epochStart: bigint; bump: number; 
+/** Which pull instructions this key may sign for (`SCOPE_*` bits). */
+scope: number;  };
 
 export type SessionKeyArgs = { mandate: Address | HasAddress; 
 /** Agent's ed25519 public key. The agent never signs a transaction. */
@@ -26,16 +28,18 @@ pubkey: Address | HasAddress;
 /** Per-epoch spend limit for this key, never above the mandate's. */
 subCap: number | bigint; expiresAt: number | bigint; revoked: boolean; spentEpoch: number | bigint; 
 /** The mandate epoch `spent_epoch` belongs to. */
-epochStart: number | bigint; bump: number;  };
+epochStart: number | bigint; bump: number; 
+/** Which pull instructions this key may sign for (`SCOPE_*` bits). */
+scope: number;  };
 
 /** Gets the encoder for {@link SessionKeyArgs} account data. */
 export function getSessionKeyEncoder(): FixedSizeEncoder<SessionKeyArgs> {
-    return transformEncoder(getStructEncoder([['discriminator', fixEncoderSize(getBytesEncoder(), 8)], ['mandate', getAddressEncoder()], ['pubkey', getAddressEncoder()], ['subCap', getU64Encoder()], ['expiresAt', getI64Encoder()], ['revoked', getBooleanEncoder()], ['spentEpoch', getU64Encoder()], ['epochStart', getI64Encoder()], ['bump', getU8Encoder()]]), (value) => ({ ...value, discriminator: SESSION_KEY_DISCRIMINATOR }));
+    return transformEncoder(getStructEncoder([['discriminator', fixEncoderSize(getBytesEncoder(), 8)], ['mandate', getAddressEncoder()], ['pubkey', getAddressEncoder()], ['subCap', getU64Encoder()], ['expiresAt', getI64Encoder()], ['revoked', getBooleanEncoder()], ['spentEpoch', getU64Encoder()], ['epochStart', getI64Encoder()], ['bump', getU8Encoder()], ['scope', getU8Encoder()]]), (value) => ({ ...value, discriminator: SESSION_KEY_DISCRIMINATOR }));
 }
 
 /** Gets the decoder for {@link SessionKey} account data. */
 export function getSessionKeyDecoder(): FixedSizeDecoder<SessionKey> {
-    return getStructDecoder([['discriminator', fixDecoderSize(getBytesDecoder(), 8)], ['mandate', getAddressDecoder()], ['pubkey', getAddressDecoder()], ['subCap', getU64Decoder()], ['expiresAt', getI64Decoder()], ['revoked', getBooleanDecoder()], ['spentEpoch', getU64Decoder()], ['epochStart', getI64Decoder()], ['bump', getU8Decoder()]]);
+    return getStructDecoder([['discriminator', fixDecoderSize(getBytesDecoder(), 8)], ['mandate', getAddressDecoder()], ['pubkey', getAddressDecoder()], ['subCap', getU64Decoder()], ['expiresAt', getI64Decoder()], ['revoked', getBooleanDecoder()], ['spentEpoch', getU64Decoder()], ['epochStart', getI64Decoder()], ['bump', getU8Decoder()], ['scope', getU8Decoder()]]);
 }
 
 /** Gets the codec for {@link SessionKey} account data. */
@@ -88,5 +92,5 @@ export async function fetchAllMaybeSessionKey(
 }
 
 export function getSessionKeySize(): number {
-  return 106;
+  return 107;
 }

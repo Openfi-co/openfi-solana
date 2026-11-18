@@ -8,6 +8,13 @@ pub const PULL_SEED: &[u8] = b"pull";
 
 pub const MAX_PAYEES: usize = 8;
 
+/// Session-key scope flags.
+/// May sign intents for `authorize_pull` (bank-side pulls; no tokens move).
+pub const SCOPE_AUTHORIZE: u8 = 1 << 0;
+/// May sign intents for `execute_pull` (tokens leave the vault).
+pub const SCOPE_EXECUTE: u8 = 1 << 1;
+pub const SCOPE_ALL: u8 = SCOPE_AUTHORIZE | SCOPE_EXECUTE;
+
 #[account]
 #[derive(InitSpace)]
 pub struct Config {
@@ -71,6 +78,8 @@ pub struct SessionKey {
     /// The mandate epoch `spent_epoch` belongs to.
     pub epoch_start: i64,
     pub bump: u8,
+    /// Which pull instructions this key may sign for (`SCOPE_*` bits).
+    pub scope: u8,
 }
 
 /// One per pull ref. Its existence makes a repeated ref fail.

@@ -13,6 +13,7 @@ const SPECIAL: Record<string, ChainErrorCode> = {
   InvalidMandate: 'INVALID_AMOUNT',
   TooManyPayees: 'INVALID_AMOUNT',
   NotRestorable: 'INVALID_AMOUNT',
+  ScopeNotAllowed: 'UNAUTHORIZED',
   InsufficientInventory: 'INSUFFICIENT_VAULT',
   RefundExceedsSettlement: 'INVALID_AMOUNT',
 };

@@ -40,4 +40,6 @@ pub enum AllowanceError {
     InvalidMandate,
     #[msg("This pull cannot be restored")]
     NotRestorable,
+    #[msg("Session key is not scoped for this kind of pull")]
+    ScopeNotAllowed,
 }

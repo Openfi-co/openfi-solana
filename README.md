@@ -9,7 +9,7 @@ Built on Flick's licensed open banking infrastructure.
 | Part | State |
 |---|---|
 | Identity Registry (`openfi_identity`): credential commitments, one nullifier per verified person, revocation, `assert_human` gate called by CPI, status-list root (`rotate_status_root`) | **Real**, on devnet |
-| Allowance State Machine (`openfi_allowance`): per-pull, per-epoch and total caps, expiry, payee allowlist, nonce, session keys with their own caps, ed25519-signed pull intents, `authorize_pull` (bank side) and `execute_pull` (from the mandate's vault), `update_mandate` (bumps the nonce so old intents die), prefund `deposit`, `close` (pays the vault back to the principal), allowance restore and vault return after a returned debit | **Real**, on devnet |
+| Allowance State Machine (`openfi_allowance`): per-pull, per-epoch and total caps, expiry, payee allowlist, nonce, session keys with their own caps and scope (bank-side pulls, vault pulls or both), ed25519-signed pull intents, `authorize_pull` (bank side) and `execute_pull` (from the mandate's vault), `update_mandate` (bumps the nonce so old intents die), prefund `deposit`, `close` (pays the vault back to the principal), allowance restore and vault return after a returned debit | **Real**, on devnet |
 | Settlement Router (`openfi_router`): pays USDC from OpenFi's float for a cleared bank debit, once per charge ID; `refund` sends it back to the float if the debit returns, never more than was settled | **Real**, on devnet |
 | Bank-debit webhook listener (`adapter/scripts/settle-server.ts`) | **Real**. Driven end to end by a sandbox bank debit from Flick's open banking sandbox (see below). A `returned` webhook sends the USDC still in the vault back to the float. |
 | TypeScript adapter implementing the shared OpenFi chain interface | **Real**. Passes the shared conformance suite (22 rules) on LiteSVM. |
@@ -59,7 +59,7 @@ agent ──signs PullIntent (ed25519, off-chain)──► OpenFi executor
                                                             │
                                      openfi_allowance checks, in order:
                                      ├─ mandate not revoked, not expired
-                                     ├─ session key exists, not revoked, not expired
+                                     ├─ session key exists, not revoked, not expired, scoped for this kind of pull
                                      ├─ the precompile verified exactly this intent under this session key
                                      ├─ nonce current, intent not expired
                                      ├─ payee allowlisted and verified (CPI to identity)
@@ -98,13 +98,13 @@ Errors (6000+): IdentityRequired, DuplicateIdentity, InvalidLevel, InvalidExpiry
 | `revoke_mandate` | principal | Kills every session key |
 | `deposit(amount)` | principal | Prefund: moves tokens from the principal's account into the vault for `execute_pull` |
 | `close` | principal + operator | Revokes the mandate, pays the vault balance to the principal and closes the vault. The operator co-signs only once no settlement into the vault can still be reversed. The mandate account stays as a revoked tombstone so its id, and the session keys derived from it, can never be reused. |
-| `issue_session(pubkey, sub_cap, expires_at)` / `revoke_session` | principal | Agent keys with their own per-epoch cap |
+| `issue_session(pubkey, sub_cap, expires_at, scope)` / `revoke_session` | principal | Agent keys with their own per-epoch cap and scope: `1` = may sign for `authorize_pull`, `2` = for `execute_pull`, `3` = both. A key scoped only for bank-side pulls can never move tokens from the vault. |
 | `authorize_pull(intent, session_pubkey)` | session-key signature | Spends allowance, emits `PullAuthorized`; the bank side moves fiat after this |
 | `execute_pull(intent, session_pubkey)` | session-key signature | Spends allowance and transfers from the vault to the payee |
 | `restore_allowance` | operator | Saga compensation when the fiat leg of an authorised pull returns |
 | `return_settlement(amount)` | operator | Saga compensation when the bank debit that funded the vault returns: sends USDC from the vault back to the router's float through `refund`, signed by the mandate |
 
-Errors (6000+): InvalidAmount, MandateRevoked, MandateExpired, UnknownSession, SessionRevoked, SessionExpired, BadSignature, StaleNonce, IntentExpired, PayeeNotAllowed, PerPullCapExceeded, EpochCapExceeded, SessionCapExceeded, TotalCapExceeded, InsufficientVault, TooManyPayees, InvalidMandate, NotRestorable.
+Errors (6000+): InvalidAmount, MandateRevoked, MandateExpired, UnknownSession, SessionRevoked, SessionExpired, BadSignature, StaleNonce, IntentExpired, PayeeNotAllowed, PerPullCapExceeded, EpochCapExceeded, SessionCapExceeded, TotalCapExceeded, InsufficientVault, TooManyPayees, InvalidMandate, NotRestorable, ScopeNotAllowed.
 
 **`openfi_router`** ([`programs/openfi_router/src/lib.rs`](programs/openfi_router/src/lib.rs))
 
@@ -132,7 +132,7 @@ cargo test -p openfi_allowance --lib          # epoch rollover and intent layout
 cd adapter && npm install && npm test         # conformance suite + on-chain enforcement, on LiteSVM
 ```
 
-`adapter/test/onchain.test.ts` checks that each key rejection is a failed transaction with the program's error in its logs, not a refusal made off-chain, including a genuine $1 signature replayed as a $9 pull. `adapter/test/update-refund.test.ts` covers mandate updates (old-nonce intents die, only the principal can update, a revoked mandate stays revoked) and refunds (partial then full, never above the settled amount, never from an account the settlement did not pay, operator only). `adapter/test/status-deposit-close.test.ts` covers the status root (moves forward only, issuer only), deposits (principal only, not into a revoked mandate) and close (balance back to the principal, operator required, id never reusable).
+`adapter/test/onchain.test.ts` checks that each key rejection is a failed transaction with the program's error in its logs, not a refusal made off-chain, including a genuine $1 signature replayed as a $9 pull. `adapter/test/update-refund.test.ts` covers mandate updates (old-nonce intents die, only the principal can update, a revoked mandate stays revoked) and refunds (partial then full, never above the settled amount, never from an account the settlement did not pay, operator only). `adapter/test/scope.test.ts` covers session scopes (a bank-pull-only key cannot move vault tokens, and the reverse). `adapter/test/status-deposit-close.test.ts` covers the status root (moves forward only, issuer only), deposits (principal only, not into a revoked mandate) and close (balance back to the principal, operator required, id never reusable).
 
 ## Run the demo on devnet
 

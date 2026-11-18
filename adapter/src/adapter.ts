@@ -61,6 +61,14 @@ export const SOLANA_MAINNET = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 export const SOLANA_DEVNET = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
 
 const LEVEL: Record<IdentityLevel, number> = { none: 0, bank_verified: 1 };
+
+/**
+ * What a session key may sign for. `authorize`: bank-side pulls
+ * (`authorizePull`, no tokens move). `execute`: pulls paid from the mandate's
+ * vault (`executePull`).
+ */
+export type SessionScope = 'authorize' | 'execute';
+const SCOPE_BIT: Record<SessionScope, number> = { authorize: 1, execute: 2 };
 const INTENT_DOMAIN = new TextEncoder().encode('OPENFI_PULL_V1');
 
 export interface SolanaAdapterOptions {
@@ -279,9 +287,11 @@ export class SolanaChainAdapter implements ChainAdapter {
     ]);
   }
 
-  async issueSession(i: { mandateId: string; sessionPubkey: string; subCap: bigint; expiresAt: number }): Promise<TxResult> {
+  /** `scope` defaults to both kinds of pull, as the shared interface assumes. */
+  async issueSession(i: { mandateId: string; sessionPubkey: string; subCap: bigint; expiresAt: number; scope?: SessionScope[] }): Promise<TxResult> {
     const { address: mandate, data } = await this.loadMandate(i.mandateId);
     const pubkey = hexToAddress(i.sessionPubkey);
+    const scope = (i.scope ?? ['authorize', 'execute']).reduce((bits, s) => bits | SCOPE_BIT[s], 0);
     return this.submit([
       getIssueSessionInstruction({
         payer: this.executor,
@@ -291,6 +301,7 @@ export class SolanaChainAdapter implements ChainAdapter {
         pubkey,
         subCap: i.subCap,
         expiresAt: i.expiresAt,
+        scope,
       }),
     ]);
   }

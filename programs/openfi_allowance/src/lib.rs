@@ -209,9 +209,12 @@ pub mod openfi_allowance {
         Ok(())
     }
 
-    pub fn issue_session(ctx: Context<IssueSession>, pubkey: Pubkey, sub_cap: u64, expires_at: i64) -> Result<()> {
+    /// `scope` is a set of `SCOPE_*` bits: which pull instructions the key may
+    /// sign for. A key scoped only for `authorize_pull` can never move tokens.
+    pub fn issue_session(ctx: Context<IssueSession>, pubkey: Pubkey, sub_cap: u64, expires_at: i64, scope: u8) -> Result<()> {
         let mandate = &ctx.accounts.mandate;
         require!(sub_cap > 0 && sub_cap <= mandate.epoch_cap, AllowanceError::InvalidMandate);
+        require!(scope != 0 && scope & !SCOPE_ALL == 0, AllowanceError::InvalidMandate);
         ctx.accounts.session.set_inner(SessionKey {
             mandate: mandate.key(),
             pubkey,
@@ -221,8 +224,9 @@ pub mod openfi_allowance {
             spent_epoch: 0,
             epoch_start: mandate.epoch_start,
             bump: ctx.bumps.session,
+            scope,
         });
-        emit!(SessionIssued { mandate: mandate.key(), pubkey, sub_cap, expires_at });
+        emit!(SessionIssued { mandate: mandate.key(), pubkey, sub_cap, expires_at, scope });
         Ok(())
     }
 
@@ -245,6 +249,7 @@ pub mod openfi_allowance {
             &a.identity_program,
             &intent,
             &session_pubkey,
+            SCOPE_AUTHORIZE,
         )?;
         a.pull.set_inner(PullRecord {
             mandate: a.mandate.key(),
@@ -272,6 +277,7 @@ pub mod openfi_allowance {
             &a.identity_program,
             &intent,
             &session_pubkey,
+            SCOPE_EXECUTE,
         )?;
         require!(a.vault.amount >= intent.amount, AllowanceError::InsufficientVault);
 
@@ -368,6 +374,7 @@ fn consume<'info>(
     identity_program: &Program<'info, OpenfiIdentity>,
     intent: &PullIntent,
     session_pubkey: &Pubkey,
+    required_scope: u8,
 ) -> Result<i64> {
     let now = Clock::get()?.unix_timestamp;
     require!(intent.amount > 0, AllowanceError::InvalidAmount);
@@ -385,6 +392,7 @@ fn consume<'info>(
     };
     require!(!session.revoked, AllowanceError::SessionRevoked);
     require!(now < session.expires_at, AllowanceError::SessionExpired);
+    require!(session.scope & required_scope != 0, AllowanceError::ScopeNotAllowed);
 
     verify_intent_signature(instructions, session_pubkey, &intent.message(&mandate.key()))?;
     require!(intent.nonce == mandate.nonce, AllowanceError::StaleNonce);
@@ -723,6 +731,7 @@ pub struct SessionIssued {
     pub pubkey: Pubkey,
     pub sub_cap: u64,
     pub expires_at: i64,
+    pub scope: u8,
 }
 
 #[event]

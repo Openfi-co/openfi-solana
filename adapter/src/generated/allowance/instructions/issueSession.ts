@@ -6,7 +6,7 @@
  * @see https://github.com/codama-idl/codama
  */
 
-import { combineCodec, fixDecoderSize, fixEncoderSize, getAddressDecoder, getAddressEncoder, getBytesDecoder, getBytesEncoder, getI64Decoder, getI64Encoder, getStructDecoder, getStructEncoder, getU64Decoder, getU64Encoder, SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, SolanaError, transformEncoder, type AccountMeta, type AccountSignerMeta, type Address, type FixedSizeCodec, type FixedSizeDecoder, type FixedSizeEncoder, type HasAddress, type Instruction, type InstructionWithAccounts, type InstructionWithData, type ReadonlyAccount, type ReadonlySignerAccount, type ReadonlyUint8Array, type WritableAccount, type WritableSignerAccount } from '@solana/kit';
+import { combineCodec, fixDecoderSize, fixEncoderSize, getAddressDecoder, getAddressEncoder, getBytesDecoder, getBytesEncoder, getI64Decoder, getI64Encoder, getStructDecoder, getStructEncoder, getU64Decoder, getU64Encoder, getU8Decoder, getU8Encoder, SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, SolanaError, transformEncoder, type AccountMeta, type AccountSignerMeta, type Address, type FixedSizeCodec, type FixedSizeDecoder, type FixedSizeEncoder, type HasAddress, type Instruction, type InstructionWithAccounts, type InstructionWithData, type ReadonlyAccount, type ReadonlySignerAccount, type ReadonlyUint8Array, type WritableAccount, type WritableSignerAccount } from '@solana/kit';
 import { getAccountMetaFactory, getAddressFromResolvedInstructionAccount, getNonNullResolvedInstructionInput, type InstructionAccountInput, type InstructionAccountInputAddress, type InstructionSignerInput, type ResolvedInstructionAccount, type ResolvedInstructionAccountMeta } from '@solana/program-client-core';
 import { findIssueSessionSessionPda } from '../pdas/index.js';
 import { OPENFI_ALLOWANCE_PROGRAM_ADDRESS } from '../programs/index.js';
@@ -18,16 +18,16 @@ export function getIssueSessionDiscriminatorBytes(): ReadonlyUint8Array { return
 export type IssueSessionInstruction<TProgram extends string = typeof OPENFI_ALLOWANCE_PROGRAM_ADDRESS, TAccountPayer extends string | AccountMeta<string> = string, TAccountPrincipal extends string | AccountMeta<string> = string, TAccountMandate extends string | AccountMeta<string> = string, TAccountSession extends string | AccountMeta<string> = string, TAccountSystemProgram extends string | AccountMeta<string> = "11111111111111111111111111111111", TRemainingAccounts extends readonly AccountMeta<string>[] = []> =
 Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array> & InstructionWithAccounts<[TAccountPayer extends string ? WritableSignerAccount<TAccountPayer> & AccountSignerMeta<TAccountPayer> : TAccountPayer, TAccountPrincipal extends string ? ReadonlySignerAccount<TAccountPrincipal> & AccountSignerMeta<TAccountPrincipal> : TAccountPrincipal, TAccountMandate extends string ? ReadonlyAccount<TAccountMandate> : TAccountMandate, TAccountSession extends string ? WritableAccount<TAccountSession> : TAccountSession, TAccountSystemProgram extends string ? ReadonlyAccount<TAccountSystemProgram> : TAccountSystemProgram, ...TRemainingAccounts]>;
 
-export type IssueSessionInstructionData = { discriminator: ReadonlyUint8Array; pubkey: Address; subCap: bigint; expiresAt: bigint;  };
+export type IssueSessionInstructionData = { discriminator: ReadonlyUint8Array; pubkey: Address; subCap: bigint; expiresAt: bigint; scope: number;  };
 
-export type IssueSessionInstructionDataArgs = { pubkey: Address | HasAddress; subCap: number | bigint; expiresAt: number | bigint;  };
+export type IssueSessionInstructionDataArgs = { pubkey: Address | HasAddress; subCap: number | bigint; expiresAt: number | bigint; scope: number;  };
 
 export function getIssueSessionInstructionDataEncoder(): FixedSizeEncoder<IssueSessionInstructionDataArgs> {
-    return transformEncoder(getStructEncoder([['discriminator', fixEncoderSize(getBytesEncoder(), 8)], ['pubkey', getAddressEncoder()], ['subCap', getU64Encoder()], ['expiresAt', getI64Encoder()]]), (value) => ({ ...value, discriminator: ISSUE_SESSION_DISCRIMINATOR }));
+    return transformEncoder(getStructEncoder([['discriminator', fixEncoderSize(getBytesEncoder(), 8)], ['pubkey', getAddressEncoder()], ['subCap', getU64Encoder()], ['expiresAt', getI64Encoder()], ['scope', getU8Encoder()]]), (value) => ({ ...value, discriminator: ISSUE_SESSION_DISCRIMINATOR }));
 }
 
 export function getIssueSessionInstructionDataDecoder(): FixedSizeDecoder<IssueSessionInstructionData> {
-    return getStructDecoder([['discriminator', fixDecoderSize(getBytesDecoder(), 8)], ['pubkey', getAddressDecoder()], ['subCap', getU64Decoder()], ['expiresAt', getI64Decoder()]]);
+    return getStructDecoder([['discriminator', fixDecoderSize(getBytesDecoder(), 8)], ['pubkey', getAddressDecoder()], ['subCap', getU64Decoder()], ['expiresAt', getI64Decoder()], ['scope', getU8Decoder()]]);
 }
 
 export function getIssueSessionInstructionDataCodec(): FixedSizeCodec<IssueSessionInstructionDataArgs, IssueSessionInstructionData> {
@@ -43,6 +43,7 @@ systemProgram?: TAccountSystemProgram;
 pubkey: IssueSessionInstructionDataArgs["pubkey"];
 subCap: IssueSessionInstructionDataArgs["subCap"];
 expiresAt: IssueSessionInstructionDataArgs["expiresAt"];
+scope: IssueSessionInstructionDataArgs["scope"];
 }
 
 export async function getIssueSessionInstructionAsync<TAccountPayer extends InstructionSignerInput, TAccountPrincipal extends InstructionSignerInput, TAccountMandate extends InstructionAccountInput, TAccountSession extends InstructionAccountInput, TAccountSystemProgram extends InstructionAccountInput, TProgramAddress extends Address = typeof OPENFI_ALLOWANCE_PROGRAM_ADDRESS>(input: IssueSessionAsyncInput<TAccountPayer, TAccountPrincipal, TAccountMandate, TAccountSession, TAccountSystemProgram>, config?: { programAddress?: TProgramAddress | { readonly address: TProgramAddress } } ): Promise<IssueSessionInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountPayer, InstructionAccountInputAddress<TAccountPayer>>, ResolvedInstructionAccountMeta<TAccountPrincipal, InstructionAccountInputAddress<TAccountPrincipal>>, ResolvedInstructionAccountMeta<TAccountMandate, InstructionAccountInputAddress<TAccountMandate>>, ResolvedInstructionAccountMeta<TAccountSession, InstructionAccountInputAddress<TAccountSession>>, ResolvedInstructionAccountMeta<TAccountSystemProgram, InstructionAccountInputAddress<TAccountSystemProgram>>>> {
@@ -82,6 +83,7 @@ systemProgram?: TAccountSystemProgram;
 pubkey: IssueSessionInstructionDataArgs["pubkey"];
 subCap: IssueSessionInstructionDataArgs["subCap"];
 expiresAt: IssueSessionInstructionDataArgs["expiresAt"];
+scope: IssueSessionInstructionDataArgs["scope"];
 }
 
 export function getIssueSessionInstruction<TAccountPayer extends InstructionSignerInput, TAccountPrincipal extends InstructionSignerInput, TAccountMandate extends InstructionAccountInput, TAccountSession extends InstructionAccountInput, TAccountSystemProgram extends InstructionAccountInput, TProgramAddress extends Address = typeof OPENFI_ALLOWANCE_PROGRAM_ADDRESS>(input: IssueSessionInput<TAccountPayer, TAccountPrincipal, TAccountMandate, TAccountSession, TAccountSystemProgram>, config?: { programAddress?: TProgramAddress | { readonly address: TProgramAddress } } ): IssueSessionInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountPayer, InstructionAccountInputAddress<TAccountPayer>>, ResolvedInstructionAccountMeta<TAccountPrincipal, InstructionAccountInputAddress<TAccountPrincipal>>, ResolvedInstructionAccountMeta<TAccountMandate, InstructionAccountInputAddress<TAccountMandate>>, ResolvedInstructionAccountMeta<TAccountSession, InstructionAccountInputAddress<TAccountSession>>, ResolvedInstructionAccountMeta<TAccountSystemProgram, InstructionAccountInputAddress<TAccountSystemProgram>>> {
