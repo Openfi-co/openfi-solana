@@ -260,6 +260,7 @@ pub mod openfi_allowance {
             executed: false,
             restored: false,
             bump: ctx.bumps.pull,
+            payee: intent.payee,
         });
         emit!(PullAuthorized { mandate: a.mandate.key(), payee: intent.payee, amount: intent.amount, ref_hash: intent.ref_hash });
         Ok(())
@@ -307,17 +308,20 @@ pub mod openfi_allowance {
             executed: true,
             restored: false,
             bump: ctx.bumps.pull,
+            payee: intent.payee,
         });
         emit!(PullExecuted { mandate: a.mandate.key(), payee: intent.payee, amount: intent.amount, ref_hash: intent.ref_hash });
         Ok(())
     }
 
     /// Saga compensation: the fiat leg of an authorized pull returned or
-    /// failed, so give the allowance back. Operator only; executed pulls (tokens
-    /// already moved) are not restorable.
+    /// failed, so give the allowance back. Operator only. Not restorable: an
+    /// executed pull (tokens already left the vault) or one the router has
+    /// already paid out (`settle_pull`).
     pub fn restore_allowance(ctx: Context<RestoreAllowance>) -> Result<()> {
         let pull = &mut ctx.accounts.pull;
         require!(!pull.executed && !pull.restored, AllowanceError::NotRestorable);
+        require!(ctx.accounts.settlement.data_is_empty(), AllowanceError::NotRestorable);
         pull.restored = true;
 
         let mandate = &mut ctx.accounts.mandate;
@@ -677,6 +681,9 @@ pub struct RestoreAllowance<'info> {
     pub pull: Account<'info, PullRecord>,
     #[account(mut, seeds = [SESSION_SEED, mandate.key().as_ref(), pull.session.as_ref()], bump = session.bump)]
     pub session: Account<'info, SessionKey>,
+    /// CHECK: the router's settlement record for this pull's ref; must not exist.
+    #[account(seeds = [openfi_router::SETTLEMENT_SEED, pull.ref_hash.as_ref()], bump, seeds::program = openfi_router::ID)]
+    pub settlement: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]

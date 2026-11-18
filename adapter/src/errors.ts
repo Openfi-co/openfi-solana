@@ -16,6 +16,9 @@ const SPECIAL: Record<string, ChainErrorCode> = {
   ScopeNotAllowed: 'UNAUTHORIZED',
   InsufficientInventory: 'INSUFFICIENT_VAULT',
   RefundExceedsSettlement: 'INVALID_AMOUNT',
+  NotAnAuthorizedPull: 'UNAUTHORIZED',
+  PullNotSettleable: 'UNAUTHORIZED',
+  WrongPayee: 'UNAUTHORIZED',
 };
 
 /** Anchor framework constraint errors (has_one, seeds, signer, ...). */

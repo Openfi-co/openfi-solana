@@ -15,12 +15,18 @@ export const OPENFI_ROUTER_ERROR__INVALID_AMOUNT = 0x1770; // 6000
 export const OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY = 0x1771; // 6001
 /** RefundExceedsSettlement: Refund would exceed the settled amount */
 export const OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT = 0x1772; // 6002
+/** NotAnAuthorizedPull: Not an authorized pull record from the allowance program */
+export const OPENFI_ROUTER_ERROR__NOT_AN_AUTHORIZED_PULL = 0x1773; // 6003
+/** PullNotSettleable: Pull was already executed from the vault or restored */
+export const OPENFI_ROUTER_ERROR__PULL_NOT_SETTLEABLE = 0x1774; // 6004
+/** WrongPayee: Destination is not the pull's payee */
+export const OPENFI_ROUTER_ERROR__WRONG_PAYEE = 0x1775; // 6005
 
-export type OpenfiRouterError = typeof OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY | typeof OPENFI_ROUTER_ERROR__INVALID_AMOUNT | typeof OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT;
+export type OpenfiRouterError = typeof OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY | typeof OPENFI_ROUTER_ERROR__INVALID_AMOUNT | typeof OPENFI_ROUTER_ERROR__NOT_AN_AUTHORIZED_PULL | typeof OPENFI_ROUTER_ERROR__PULL_NOT_SETTLEABLE | typeof OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT | typeof OPENFI_ROUTER_ERROR__WRONG_PAYEE;
 
 let openfiRouterErrorMessages: Record<OpenfiRouterError, string> | undefined;
 if (process.env['NODE_ENV'] !== 'production') {
-  openfiRouterErrorMessages = { [OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY]: `Router inventory is too low for this settlement`, [OPENFI_ROUTER_ERROR__INVALID_AMOUNT]: `Amount must be greater than zero`, [OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT]: `Refund would exceed the settled amount` };
+  openfiRouterErrorMessages = { [OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY]: `Router inventory is too low for this settlement`, [OPENFI_ROUTER_ERROR__INVALID_AMOUNT]: `Amount must be greater than zero`, [OPENFI_ROUTER_ERROR__NOT_AN_AUTHORIZED_PULL]: `Not an authorized pull record from the allowance program`, [OPENFI_ROUTER_ERROR__PULL_NOT_SETTLEABLE]: `Pull was already executed from the vault or restored`, [OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT]: `Refund would exceed the settled amount`, [OPENFI_ROUTER_ERROR__WRONG_PAYEE]: `Destination is not the pull's payee` };
 }
 
 export function getOpenfiRouterErrorMessage(code: OpenfiRouterError): string {

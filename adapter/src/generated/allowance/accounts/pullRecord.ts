@@ -14,20 +14,24 @@ export function getPullRecordDiscriminatorBytes(): ReadonlyUint8Array { return f
 
 export type PullRecord = { discriminator: ReadonlyUint8Array; mandate: Address; session: Address; refHash: ReadonlyUint8Array; amount: bigint; epochStart: bigint; 
 /** Tokens left the vault (`execute_pull`). An executed pull cannot be restored. */
-executed: boolean; restored: boolean; bump: number;  };
+executed: boolean; restored: boolean; bump: number; 
+/** Who the pull pays. The router's `settle_pull` pays only this wallet. */
+payee: Address;  };
 
 export type PullRecordArgs = { mandate: Address | HasAddress; session: Address | HasAddress; refHash: ReadonlyUint8Array; amount: number | bigint; epochStart: number | bigint; 
 /** Tokens left the vault (`execute_pull`). An executed pull cannot be restored. */
-executed: boolean; restored: boolean; bump: number;  };
+executed: boolean; restored: boolean; bump: number; 
+/** Who the pull pays. The router's `settle_pull` pays only this wallet. */
+payee: Address | HasAddress;  };
 
 /** Gets the encoder for {@link PullRecordArgs} account data. */
 export function getPullRecordEncoder(): FixedSizeEncoder<PullRecordArgs> {
-    return transformEncoder(getStructEncoder([['discriminator', fixEncoderSize(getBytesEncoder(), 8)], ['mandate', getAddressEncoder()], ['session', getAddressEncoder()], ['refHash', fixEncoderSize(getBytesEncoder(), 32)], ['amount', getU64Encoder()], ['epochStart', getI64Encoder()], ['executed', getBooleanEncoder()], ['restored', getBooleanEncoder()], ['bump', getU8Encoder()]]), (value) => ({ ...value, discriminator: PULL_RECORD_DISCRIMINATOR }));
+    return transformEncoder(getStructEncoder([['discriminator', fixEncoderSize(getBytesEncoder(), 8)], ['mandate', getAddressEncoder()], ['session', getAddressEncoder()], ['refHash', fixEncoderSize(getBytesEncoder(), 32)], ['amount', getU64Encoder()], ['epochStart', getI64Encoder()], ['executed', getBooleanEncoder()], ['restored', getBooleanEncoder()], ['bump', getU8Encoder()], ['payee', getAddressEncoder()]]), (value) => ({ ...value, discriminator: PULL_RECORD_DISCRIMINATOR }));
 }
 
 /** Gets the decoder for {@link PullRecord} account data. */
 export function getPullRecordDecoder(): FixedSizeDecoder<PullRecord> {
-    return getStructDecoder([['discriminator', fixDecoderSize(getBytesDecoder(), 8)], ['mandate', getAddressDecoder()], ['session', getAddressDecoder()], ['refHash', fixDecoderSize(getBytesDecoder(), 32)], ['amount', getU64Decoder()], ['epochStart', getI64Decoder()], ['executed', getBooleanDecoder()], ['restored', getBooleanDecoder()], ['bump', getU8Decoder()]]);
+    return getStructDecoder([['discriminator', fixDecoderSize(getBytesDecoder(), 8)], ['mandate', getAddressDecoder()], ['session', getAddressDecoder()], ['refHash', fixDecoderSize(getBytesDecoder(), 32)], ['amount', getU64Decoder()], ['epochStart', getI64Decoder()], ['executed', getBooleanDecoder()], ['restored', getBooleanDecoder()], ['bump', getU8Decoder()], ['payee', getAddressDecoder()]]);
 }
 
 /** Gets the codec for {@link PullRecord} account data. */
@@ -80,5 +84,5 @@ export async function fetchAllMaybePullRecord(
 }
 
 export function getPullRecordSize(): number {
-  return 123;
+  return 155;
 }

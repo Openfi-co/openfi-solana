@@ -15,8 +15,8 @@ export const RESTORE_ALLOWANCE_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Arra
 
 export function getRestoreAllowanceDiscriminatorBytes(): ReadonlyUint8Array { return fixEncoderSize(getBytesEncoder(), 8).encode(RESTORE_ALLOWANCE_DISCRIMINATOR); }
 
-export type RestoreAllowanceInstruction<TProgram extends string = typeof OPENFI_ALLOWANCE_PROGRAM_ADDRESS, TAccountOperator extends string | AccountMeta<string> = string, TAccountConfig extends string | AccountMeta<string> = string, TAccountMandate extends string | AccountMeta<string> = string, TAccountPull extends string | AccountMeta<string> = string, TAccountSession extends string | AccountMeta<string> = string, TRemainingAccounts extends readonly AccountMeta<string>[] = []> =
-Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array> & InstructionWithAccounts<[TAccountOperator extends string ? ReadonlySignerAccount<TAccountOperator> & AccountSignerMeta<TAccountOperator> : TAccountOperator, TAccountConfig extends string ? ReadonlyAccount<TAccountConfig> : TAccountConfig, TAccountMandate extends string ? WritableAccount<TAccountMandate> : TAccountMandate, TAccountPull extends string ? WritableAccount<TAccountPull> : TAccountPull, TAccountSession extends string ? WritableAccount<TAccountSession> : TAccountSession, ...TRemainingAccounts]>;
+export type RestoreAllowanceInstruction<TProgram extends string = typeof OPENFI_ALLOWANCE_PROGRAM_ADDRESS, TAccountOperator extends string | AccountMeta<string> = string, TAccountConfig extends string | AccountMeta<string> = string, TAccountMandate extends string | AccountMeta<string> = string, TAccountPull extends string | AccountMeta<string> = string, TAccountSession extends string | AccountMeta<string> = string, TAccountSettlement extends string | AccountMeta<string> = string, TRemainingAccounts extends readonly AccountMeta<string>[] = []> =
+Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array> & InstructionWithAccounts<[TAccountOperator extends string ? ReadonlySignerAccount<TAccountOperator> & AccountSignerMeta<TAccountOperator> : TAccountOperator, TAccountConfig extends string ? ReadonlyAccount<TAccountConfig> : TAccountConfig, TAccountMandate extends string ? WritableAccount<TAccountMandate> : TAccountMandate, TAccountPull extends string ? WritableAccount<TAccountPull> : TAccountPull, TAccountSession extends string ? WritableAccount<TAccountSession> : TAccountSession, TAccountSettlement extends string ? ReadonlyAccount<TAccountSettlement> : TAccountSettlement, ...TRemainingAccounts]>;
 
 export type RestoreAllowanceInstructionData = { discriminator: ReadonlyUint8Array;  };
 
@@ -34,15 +34,16 @@ export function getRestoreAllowanceInstructionDataCodec(): FixedSizeCodec<Restor
     return combineCodec(getRestoreAllowanceInstructionDataEncoder(), getRestoreAllowanceInstructionDataDecoder());
 }
 
-export type RestoreAllowanceAsyncInput<TAccountOperator extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountMandate extends InstructionAccountInput = InstructionAccountInput, TAccountPull extends InstructionAccountInput = InstructionAccountInput, TAccountSession extends InstructionAccountInput = InstructionAccountInput> =  {
+export type RestoreAllowanceAsyncInput<TAccountOperator extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountMandate extends InstructionAccountInput = InstructionAccountInput, TAccountPull extends InstructionAccountInput = InstructionAccountInput, TAccountSession extends InstructionAccountInput = InstructionAccountInput, TAccountSettlement extends InstructionAccountInput = InstructionAccountInput> =  {
   operator: TAccountOperator;
 config?: TAccountConfig;
 mandate: TAccountMandate;
 pull: TAccountPull;
 session: TAccountSession;
+settlement: TAccountSettlement;
 }
 
-export async function getRestoreAllowanceInstructionAsync<TAccountOperator extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountMandate extends InstructionAccountInput, TAccountPull extends InstructionAccountInput, TAccountSession extends InstructionAccountInput, TProgramAddress extends Address = typeof OPENFI_ALLOWANCE_PROGRAM_ADDRESS>(input: RestoreAllowanceAsyncInput<TAccountOperator, TAccountConfig, TAccountMandate, TAccountPull, TAccountSession>, config?: { programAddress?: TProgramAddress | { readonly address: TProgramAddress } } ): Promise<RestoreAllowanceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountOperator, InstructionAccountInputAddress<TAccountOperator>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountMandate, InstructionAccountInputAddress<TAccountMandate>>, ResolvedInstructionAccountMeta<TAccountPull, InstructionAccountInputAddress<TAccountPull>>, ResolvedInstructionAccountMeta<TAccountSession, InstructionAccountInputAddress<TAccountSession>>>> {
+export async function getRestoreAllowanceInstructionAsync<TAccountOperator extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountMandate extends InstructionAccountInput, TAccountPull extends InstructionAccountInput, TAccountSession extends InstructionAccountInput, TAccountSettlement extends InstructionAccountInput, TProgramAddress extends Address = typeof OPENFI_ALLOWANCE_PROGRAM_ADDRESS>(input: RestoreAllowanceAsyncInput<TAccountOperator, TAccountConfig, TAccountMandate, TAccountPull, TAccountSession, TAccountSettlement>, config?: { programAddress?: TProgramAddress | { readonly address: TProgramAddress } } ): Promise<RestoreAllowanceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountOperator, InstructionAccountInputAddress<TAccountOperator>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountMandate, InstructionAccountInputAddress<TAccountMandate>>, ResolvedInstructionAccountMeta<TAccountPull, InstructionAccountInputAddress<TAccountPull>>, ResolvedInstructionAccountMeta<TAccountSession, InstructionAccountInputAddress<TAccountSession>>, ResolvedInstructionAccountMeta<TAccountSettlement, InstructionAccountInputAddress<TAccountSettlement>>>> {
   // Program address.
 const programAddressInput = config?.programAddress ?? OPENFI_ALLOWANCE_PROGRAM_ADDRESS;
 const programAddress = typeof programAddressInput === 'string' ? programAddressInput : programAddressInput.address;
@@ -51,7 +52,7 @@ const programAddress = typeof programAddressInput === 'string' ? programAddressI
 const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
 
  // Original accounts.
-const originalAccounts = { operator: { value: input.operator ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, mandate: { value: input.mandate ?? null, isSigner: false, isWritable: true }, pull: { value: input.pull ?? null, isSigner: false, isWritable: true }, session: { value: input.session ?? null, isSigner: false, isWritable: true } }
+const originalAccounts = { operator: { value: input.operator ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, mandate: { value: input.mandate ?? null, isSigner: false, isWritable: true }, pull: { value: input.pull ?? null, isSigner: false, isWritable: true }, session: { value: input.session ?? null, isSigner: false, isWritable: true }, settlement: { value: input.settlement ?? null, isSigner: false, isWritable: false } }
 const accounts = originalAccounts as Record<keyof typeof originalAccounts, ResolvedInstructionAccount>;
 
 
@@ -60,18 +61,19 @@ if (!accounts.config.value) {
 accounts.config.value = await findConfigPda({ programAddress });
 }
 
-return Object.freeze({ accounts: [getAccountMeta("operator", accounts.operator), getAccountMeta("config", accounts.config), getAccountMeta("mandate", accounts.mandate), getAccountMeta("pull", accounts.pull), getAccountMeta("session", accounts.session)], data: getRestoreAllowanceInstructionDataEncoder().encode({}), programAddress } as RestoreAllowanceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountOperator, InstructionAccountInputAddress<TAccountOperator>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountMandate, InstructionAccountInputAddress<TAccountMandate>>, ResolvedInstructionAccountMeta<TAccountPull, InstructionAccountInputAddress<TAccountPull>>, ResolvedInstructionAccountMeta<TAccountSession, InstructionAccountInputAddress<TAccountSession>>>);
+return Object.freeze({ accounts: [getAccountMeta("operator", accounts.operator), getAccountMeta("config", accounts.config), getAccountMeta("mandate", accounts.mandate), getAccountMeta("pull", accounts.pull), getAccountMeta("session", accounts.session), getAccountMeta("settlement", accounts.settlement)], data: getRestoreAllowanceInstructionDataEncoder().encode({}), programAddress } as RestoreAllowanceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountOperator, InstructionAccountInputAddress<TAccountOperator>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountMandate, InstructionAccountInputAddress<TAccountMandate>>, ResolvedInstructionAccountMeta<TAccountPull, InstructionAccountInputAddress<TAccountPull>>, ResolvedInstructionAccountMeta<TAccountSession, InstructionAccountInputAddress<TAccountSession>>, ResolvedInstructionAccountMeta<TAccountSettlement, InstructionAccountInputAddress<TAccountSettlement>>>);
 }
 
-export type RestoreAllowanceInput<TAccountOperator extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountMandate extends InstructionAccountInput = InstructionAccountInput, TAccountPull extends InstructionAccountInput = InstructionAccountInput, TAccountSession extends InstructionAccountInput = InstructionAccountInput> =  {
+export type RestoreAllowanceInput<TAccountOperator extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountMandate extends InstructionAccountInput = InstructionAccountInput, TAccountPull extends InstructionAccountInput = InstructionAccountInput, TAccountSession extends InstructionAccountInput = InstructionAccountInput, TAccountSettlement extends InstructionAccountInput = InstructionAccountInput> =  {
   operator: TAccountOperator;
 config: TAccountConfig;
 mandate: TAccountMandate;
 pull: TAccountPull;
 session: TAccountSession;
+settlement: TAccountSettlement;
 }
 
-export function getRestoreAllowanceInstruction<TAccountOperator extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountMandate extends InstructionAccountInput, TAccountPull extends InstructionAccountInput, TAccountSession extends InstructionAccountInput, TProgramAddress extends Address = typeof OPENFI_ALLOWANCE_PROGRAM_ADDRESS>(input: RestoreAllowanceInput<TAccountOperator, TAccountConfig, TAccountMandate, TAccountPull, TAccountSession>, config?: { programAddress?: TProgramAddress | { readonly address: TProgramAddress } } ): RestoreAllowanceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountOperator, InstructionAccountInputAddress<TAccountOperator>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountMandate, InstructionAccountInputAddress<TAccountMandate>>, ResolvedInstructionAccountMeta<TAccountPull, InstructionAccountInputAddress<TAccountPull>>, ResolvedInstructionAccountMeta<TAccountSession, InstructionAccountInputAddress<TAccountSession>>> {
+export function getRestoreAllowanceInstruction<TAccountOperator extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountMandate extends InstructionAccountInput, TAccountPull extends InstructionAccountInput, TAccountSession extends InstructionAccountInput, TAccountSettlement extends InstructionAccountInput, TProgramAddress extends Address = typeof OPENFI_ALLOWANCE_PROGRAM_ADDRESS>(input: RestoreAllowanceInput<TAccountOperator, TAccountConfig, TAccountMandate, TAccountPull, TAccountSession, TAccountSettlement>, config?: { programAddress?: TProgramAddress | { readonly address: TProgramAddress } } ): RestoreAllowanceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountOperator, InstructionAccountInputAddress<TAccountOperator>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountMandate, InstructionAccountInputAddress<TAccountMandate>>, ResolvedInstructionAccountMeta<TAccountPull, InstructionAccountInputAddress<TAccountPull>>, ResolvedInstructionAccountMeta<TAccountSession, InstructionAccountInputAddress<TAccountSession>>, ResolvedInstructionAccountMeta<TAccountSettlement, InstructionAccountInputAddress<TAccountSettlement>>> {
   // Program address.
 const programAddressInput = config?.programAddress ?? OPENFI_ALLOWANCE_PROGRAM_ADDRESS;
 const programAddress = typeof programAddressInput === 'string' ? programAddressInput : programAddressInput.address;
@@ -80,13 +82,13 @@ const programAddress = typeof programAddressInput === 'string' ? programAddressI
 const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
 
  // Original accounts.
-const originalAccounts = { operator: { value: input.operator ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, mandate: { value: input.mandate ?? null, isSigner: false, isWritable: true }, pull: { value: input.pull ?? null, isSigner: false, isWritable: true }, session: { value: input.session ?? null, isSigner: false, isWritable: true } }
+const originalAccounts = { operator: { value: input.operator ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, mandate: { value: input.mandate ?? null, isSigner: false, isWritable: true }, pull: { value: input.pull ?? null, isSigner: false, isWritable: true }, session: { value: input.session ?? null, isSigner: false, isWritable: true }, settlement: { value: input.settlement ?? null, isSigner: false, isWritable: false } }
 const accounts = originalAccounts as Record<keyof typeof originalAccounts, ResolvedInstructionAccount>;
 
 
 
 
-return Object.freeze({ accounts: [getAccountMeta("operator", accounts.operator), getAccountMeta("config", accounts.config), getAccountMeta("mandate", accounts.mandate), getAccountMeta("pull", accounts.pull), getAccountMeta("session", accounts.session)], data: getRestoreAllowanceInstructionDataEncoder().encode({}), programAddress } as RestoreAllowanceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountOperator, InstructionAccountInputAddress<TAccountOperator>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountMandate, InstructionAccountInputAddress<TAccountMandate>>, ResolvedInstructionAccountMeta<TAccountPull, InstructionAccountInputAddress<TAccountPull>>, ResolvedInstructionAccountMeta<TAccountSession, InstructionAccountInputAddress<TAccountSession>>>);
+return Object.freeze({ accounts: [getAccountMeta("operator", accounts.operator), getAccountMeta("config", accounts.config), getAccountMeta("mandate", accounts.mandate), getAccountMeta("pull", accounts.pull), getAccountMeta("session", accounts.session), getAccountMeta("settlement", accounts.settlement)], data: getRestoreAllowanceInstructionDataEncoder().encode({}), programAddress } as RestoreAllowanceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountOperator, InstructionAccountInputAddress<TAccountOperator>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountMandate, InstructionAccountInputAddress<TAccountMandate>>, ResolvedInstructionAccountMeta<TAccountPull, InstructionAccountInputAddress<TAccountPull>>, ResolvedInstructionAccountMeta<TAccountSession, InstructionAccountInputAddress<TAccountSession>>, ResolvedInstructionAccountMeta<TAccountSettlement, InstructionAccountInputAddress<TAccountSettlement>>>);
 }
 
 export type ParsedRestoreAllowanceInstruction<TProgram extends string = typeof OPENFI_ALLOWANCE_PROGRAM_ADDRESS, TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[]> = { programAddress: Address<TProgram>;
@@ -96,12 +98,13 @@ config: TAccountMetas[1];
 mandate: TAccountMetas[2];
 pull: TAccountMetas[3];
 session: TAccountMetas[4];
+settlement: TAccountMetas[5];
 };
 data: RestoreAllowanceInstructionData; };
 
 export function parseRestoreAllowanceInstruction<TProgram extends string, TAccountMetas extends readonly AccountMeta[]>(instruction: Instruction<TProgram> & InstructionWithAccounts<TAccountMetas> & InstructionWithData<ReadonlyUint8Array>): ParsedRestoreAllowanceInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 5) {
-  throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, { actualAccountMetas: instruction.accounts.length, expectedAccountMetas: 5 });
+  if (instruction.accounts.length < 6) {
+  throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, { actualAccountMetas: instruction.accounts.length, expectedAccountMetas: 6 });
 }
 let accountIndex = 0;
 const getNextAccount = () => {
@@ -109,5 +112,5 @@ const getNextAccount = () => {
   accountIndex += 1;
   return accountMeta;
 }
-  return { programAddress: instruction.programAddress, accounts: { operator: getNextAccount(), config: getNextAccount(), mandate: getNextAccount(), pull: getNextAccount(), session: getNextAccount() }, data: getRestoreAllowanceInstructionDataDecoder().decode(instruction.data) };
+  return { programAddress: instruction.programAddress, accounts: { operator: getNextAccount(), config: getNextAccount(), mandate: getNextAccount(), pull: getNextAccount(), session: getNextAccount(), settlement: getNextAccount() }, data: getRestoreAllowanceInstructionDataDecoder().decode(instruction.data) };
 }

@@ -39,7 +39,7 @@ import {
   getRotateStatusRootInstruction,
   getStatusListDecoder,
 } from './generated/identity/index.js';
-import { getSettleInstruction, getSettlementDecoder, OPENFI_ROUTER_PROGRAM_ADDRESS } from './generated/router/index.js';
+import { getSettleInstruction, getSettlementDecoder, getSettlePullInstruction, OPENFI_ROUTER_PROGRAM_ADDRESS } from './generated/router/index.js';
 import { toChainError } from './errors.js';
 import { allowancePdas, identityPdas, routerPdas, sha256 } from './pdas.js';
 import type { SolanaTransport } from './transport.js';
@@ -353,6 +353,7 @@ export class SolanaChainAdapter implements ChainAdapter {
         mandate,
         pull: pullAddr,
         session: allowancePdas.session(mandate, pull.session),
+        settlement: routerPdas.settlement(i.ref),
       }),
     ]);
   }
@@ -375,6 +376,35 @@ export class SolanaChainAdapter implements ChainAdapter {
         tokenProgram: this.tokenProgram,
         refHash: sha256(i.ref),
         amount: i.amount,
+      }),
+    ]);
+  }
+
+  /**
+   * Router `settle_pull`: pay an authorised pull to its payee once the fiat
+   * leg has cleared. The router reads the allowance program's pull record and
+   * pays only that payee, exactly that amount, once; an executed or restored
+   * pull is refused on-chain. Solana-specific for now.
+   */
+  async settlePull(i: { mandateId: string; ref: string }): Promise<TxResult> {
+    const mandate = allowancePdas.mandate(i.mandateId);
+    const pullAddr = allowancePdas.pull(mandate, i.ref);
+    const settlement = routerPdas.settlement(i.ref);
+    if (await this.t.getAccount(settlement)) return { txId: null, status: 'duplicate' };
+    const acc = await this.t.getAccount(pullAddr);
+    if (!acc) throw new ChainError('UNAUTHORIZED', `no authorised pull for ref ${i.ref}`);
+    const pull = getPullRecordDecoder().decode(acc.data);
+    return this.submit([
+      getSettlePullInstruction({
+        authority: this.executor,
+        config: routerPdas.config(),
+        mint: this.mint,
+        inventory: routerPdas.inventory(),
+        pull: pullAddr,
+        destination: await this.tokenAccount(pull.payee),
+        settlement,
+        tokenProgram: this.tokenProgram,
+        refHash: sha256(i.ref),
       }),
     ]);
   }

@@ -6,5 +6,6 @@
  * @see https://github.com/codama-idl/codama
  */
 
+export * from './pullSettled.js';
 export * from './refunded.js';
 export * from './settled.js';

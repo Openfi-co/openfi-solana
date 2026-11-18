@@ -9,7 +9,7 @@
 import { assertIsInstructionWithAccounts, containsBytes, extendClient, fixEncoderSize, getBytesEncoder, SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT, SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION, SOLANA_ERROR__PROGRAM_CLIENTS__UNRECOGNIZED_INSTRUCTION_TYPE, SolanaError, type Address, type ClientWithRpc, type ClientWithTransactionPlanning, type ClientWithTransactionSending, type ExtendedClient, type GetAccountInfoApi, type GetMultipleAccountsApi, type HasAddress, type Instruction, type InstructionWithData, type ReadonlyUint8Array } from '@solana/kit';
 import { addSelfFetchFunctions, addSelfPlanAndSendFunctions, type SelfFetchFunctions, type SelfPlanAndSendFunctions } from '@solana/program-client-core';
 import { getRouterConfigCodec, getSettlementCodec, type RouterConfig, type RouterConfigArgs, type Settlement, type SettlementArgs } from '../accounts/index.js';
-import { getInitRouterInstructionAsync, getRefundInstructionAsync, getSetAuthorityInstructionAsync, getSettleInstructionAsync, parseInitRouterInstruction, parseRefundInstruction, parseSetAuthorityInstruction, parseSettleInstruction, type InitRouterAsyncInput, type ParsedInitRouterInstruction, type ParsedRefundInstruction, type ParsedSetAuthorityInstruction, type ParsedSettleInstruction, type RefundAsyncInput, type SetAuthorityAsyncInput, type SettleAsyncInput } from '../instructions/index.js';
+import { getInitRouterInstructionAsync, getRefundInstructionAsync, getSetAuthorityInstructionAsync, getSettleInstructionAsync, getSettlePullInstructionAsync, parseInitRouterInstruction, parseRefundInstruction, parseSetAuthorityInstruction, parseSettleInstruction, parseSettlePullInstruction, type InitRouterAsyncInput, type ParsedInitRouterInstruction, type ParsedRefundInstruction, type ParsedSetAuthorityInstruction, type ParsedSettleInstruction, type ParsedSettlePullInstruction, type RefundAsyncInput, type SetAuthorityAsyncInput, type SettleAsyncInput, type SettlePullAsyncInput } from '../instructions/index.js';
 import { findConfigPda, findInventoryPda, findSettlementPda } from '../pdas/index.js';
 
 export const OPENFI_ROUTER_PROGRAM_ADDRESS = 'd85jMjdA3wUtjeD1wBuAarMMcYczSmNyWajJSxpW7UL' as Address<'d85jMjdA3wUtjeD1wBuAarMMcYczSmNyWajJSxpW7UL'>;
@@ -23,16 +23,17 @@ if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Arr
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT, { accountData: data, programName: "openfiRouter" });
 }
 
-export enum OpenfiRouterEvent { Refunded, Settled }
+export enum OpenfiRouterEvent { PullSettled, Refunded, Settled }
 
 export function identifyOpenfiRouterEvent(event: { data: ReadonlyUint8Array } | ReadonlyUint8Array): OpenfiRouterEvent {
     const data = 'data' in event ? event.data : event;
-    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([35, 103, 149, 246, 196, 123, 221, 99])), 0)) { return OpenfiRouterEvent.Refunded; }
+    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([223, 182, 84, 67, 233, 230, 111, 216])), 0)) { return OpenfiRouterEvent.PullSettled; }
+if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([35, 103, 149, 246, 196, 123, 221, 99])), 0)) { return OpenfiRouterEvent.Refunded; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([232, 210, 40, 17, 142, 124, 145, 238])), 0)) { return OpenfiRouterEvent.Settled; }
     throw new Error('The provided event could not be identified as a openfiRouter event.');
 }
 
-export enum OpenfiRouterInstruction { InitRouter, Refund, SetAuthority, Settle }
+export enum OpenfiRouterInstruction { InitRouter, Refund, SetAuthority, Settle, SettlePull }
 
 export function identifyOpenfiRouterInstruction(instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array): OpenfiRouterInstruction {
     const data = 'data' in instruction ? instruction.data : instruction;
@@ -40,6 +41,7 @@ export function identifyOpenfiRouterInstruction(instruction: { data: ReadonlyUin
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([2, 96, 183, 251, 63, 208, 46, 46])), 0)) { return OpenfiRouterInstruction.Refund; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([133, 250, 37, 21, 110, 163, 26, 121])), 0)) { return OpenfiRouterInstruction.SetAuthority; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([175, 42, 185, 87, 144, 131, 102, 212])), 0)) { return OpenfiRouterInstruction.Settle; }
+if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([25, 94, 189, 224, 110, 11, 146, 160])), 0)) { return OpenfiRouterInstruction.SettlePull; }
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION, { instructionData: data, programName: "openfiRouter" });
 }
 
@@ -48,6 +50,7 @@ export type ParsedOpenfiRouterInstruction<TProgram extends string = 'd85jMjdA3wU
 | { instructionType: OpenfiRouterInstruction.Refund } & ParsedRefundInstruction<TProgram>
 | { instructionType: OpenfiRouterInstruction.SetAuthority } & ParsedSetAuthorityInstruction<TProgram>
 | { instructionType: OpenfiRouterInstruction.Settle } & ParsedSettleInstruction<TProgram>
+| { instructionType: OpenfiRouterInstruction.SettlePull } & ParsedSettlePullInstruction<TProgram>
 
 
         export function parseOpenfiRouterInstruction<TProgram extends string>(
@@ -64,6 +67,8 @@ case OpenfiRouterInstruction.SetAuthority: { assertIsInstructionWithAccounts(ins
 return { instructionType: OpenfiRouterInstruction.SetAuthority, ...parseSetAuthorityInstruction(instruction) }; }
 case OpenfiRouterInstruction.Settle: { assertIsInstructionWithAccounts(instruction);
 return { instructionType: OpenfiRouterInstruction.Settle, ...parseSettleInstruction(instruction) }; }
+case OpenfiRouterInstruction.SettlePull: { assertIsInstructionWithAccounts(instruction);
+return { instructionType: OpenfiRouterInstruction.SettlePull, ...parseSettlePullInstruction(instruction) }; }
                 default: throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__UNRECOGNIZED_INSTRUCTION_TYPE, { instructionType: instructionType as string, programName: "openfiRouter" });
             }
         }
@@ -72,7 +77,7 @@ export type OpenfiRouterPlugin = { accounts: OpenfiRouterPluginAccounts; instruc
 
 export type OpenfiRouterPluginAccounts = { routerConfig: ReturnType<typeof getRouterConfigCodec> & SelfFetchFunctions<RouterConfigArgs, RouterConfig>; settlement: ReturnType<typeof getSettlementCodec> & SelfFetchFunctions<SettlementArgs, Settlement>; }
 
-export type OpenfiRouterPluginInstructions = { initRouter: (input: InitRouterAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getInitRouterInstructionAsync> & SelfPlanAndSendFunctions; refund: (input: RefundAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getRefundInstructionAsync> & SelfPlanAndSendFunctions; setAuthority: (input: SetAuthorityAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getSetAuthorityInstructionAsync> & SelfPlanAndSendFunctions; settle: (input: SettleAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getSettleInstructionAsync> & SelfPlanAndSendFunctions; }
+export type OpenfiRouterPluginInstructions = { initRouter: (input: InitRouterAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getInitRouterInstructionAsync> & SelfPlanAndSendFunctions; refund: (input: RefundAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getRefundInstructionAsync> & SelfPlanAndSendFunctions; setAuthority: (input: SetAuthorityAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getSetAuthorityInstructionAsync> & SelfPlanAndSendFunctions; settle: (input: SettleAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getSettleInstructionAsync> & SelfPlanAndSendFunctions; settlePull: (input: SettlePullAsyncInput, config?: { programAddress?: Address | HasAddress }) => ReturnType<typeof getSettlePullInstructionAsync> & SelfPlanAndSendFunctions; }
 
 export type OpenfiRouterPluginPdas = { config: typeof findConfigPda; inventory: typeof findInventoryPda; settlement: typeof findSettlementPda; }
 
@@ -80,6 +85,6 @@ export type OpenfiRouterPluginRequirements = ClientWithRpc<GetAccountInfoApi & G
 
 export function openfiRouterProgram(config: { programAddress?: Address | HasAddress } = {}) {
     return <T extends OpenfiRouterPluginRequirements>(client: T): ExtendedClient<T, { openfiRouter: OpenfiRouterPlugin }> => {
-        return extendClient(client, { openfiRouter: <OpenfiRouterPlugin>{ accounts: { routerConfig: addSelfFetchFunctions(client, getRouterConfigCodec()), settlement: addSelfFetchFunctions(client, getSettlementCodec()) }, instructions: { initRouter: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getInitRouterInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), refund: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getRefundInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), setAuthority: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getSetAuthorityInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), settle: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getSettleInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })) }, pdas: { config: pdaConfig => findConfigPda({ programAddress: pdaConfig?.programAddress ?? config.programAddress }), inventory: pdaConfig => findInventoryPda({ programAddress: pdaConfig?.programAddress ?? config.programAddress }), settlement: (seeds, pdaConfig) => findSettlementPda(seeds, { programAddress: pdaConfig?.programAddress ?? config.programAddress }) }, identifyAccount: identifyOpenfiRouterAccount, identifyInstruction: identifyOpenfiRouterInstruction, parseInstruction: parseOpenfiRouterInstruction } });
+        return extendClient(client, { openfiRouter: <OpenfiRouterPlugin>{ accounts: { routerConfig: addSelfFetchFunctions(client, getRouterConfigCodec()), settlement: addSelfFetchFunctions(client, getSettlementCodec()) }, instructions: { initRouter: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getInitRouterInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), refund: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getRefundInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), setAuthority: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getSetAuthorityInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), settle: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getSettleInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })), settlePull: (input, instructionConfig) => addSelfPlanAndSendFunctions(client, getSettlePullInstructionAsync(input, { programAddress: instructionConfig?.programAddress ?? config.programAddress })) }, pdas: { config: pdaConfig => findConfigPda({ programAddress: pdaConfig?.programAddress ?? config.programAddress }), inventory: pdaConfig => findInventoryPda({ programAddress: pdaConfig?.programAddress ?? config.programAddress }), settlement: (seeds, pdaConfig) => findSettlementPda(seeds, { programAddress: pdaConfig?.programAddress ?? config.programAddress }) }, identifyAccount: identifyOpenfiRouterAccount, identifyInstruction: identifyOpenfiRouterInstruction, parseInstruction: parseOpenfiRouterInstruction } });
     };
 }

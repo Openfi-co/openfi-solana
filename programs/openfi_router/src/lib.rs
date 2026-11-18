@@ -7,6 +7,28 @@ pub const ROUTER_SEED: &[u8] = b"router";
 pub const INVENTORY_SEED: &[u8] = b"inventory";
 pub const SETTLEMENT_SEED: &[u8] = b"settlement";
 
+/// The allowance program, whose pull records `settle_pull` reads. Not a crate
+/// dependency: the allowance program already depends on this one (for
+/// `refund`), so the record is decoded here from its account data.
+pub const ALLOWANCE_PROGRAM_ID: Pubkey = pubkey!("9BNvSF8bUEQJaBbWxBmtjRnBH1qmM47JpWWDwKM8Cs1B");
+/// Anchor discriminator of the allowance program's `PullRecord` account. A unit
+/// test in the allowance crate checks it, and the layout below, against the real type.
+pub const PULL_RECORD_DISCRIMINATOR: [u8; 8] = [167, 170, 127, 214, 16, 95, 163, 211];
+
+/// Layout of the allowance program's `PullRecord`, after the discriminator.
+#[derive(AnchorDeserialize)]
+pub struct PullRecordView {
+    pub mandate: Pubkey,
+    pub session: Pubkey,
+    pub ref_hash: [u8; 32],
+    pub amount: u64,
+    pub epoch_start: i64,
+    pub executed: bool,
+    pub restored: bool,
+    pub bump: u8,
+    pub payee: Pubkey,
+}
+
 /// SettlementRouter: once fiat clears off-chain, pays stablecoin from OpenFi's
 /// inventory to the destination. Idempotent by `ref`: the `Settlement` record
 /// is created on first settle, so a repeated ref can never pay twice. If the
@@ -70,6 +92,46 @@ pub mod openfi_router {
         Ok(())
     }
 
+    /// Pay an authorized pull: the Web2 path, `authorize_pull` → fiat clears →
+    /// this. Pays only if the allowance program holds a pull record for this
+    /// ref that is still open (not executed from the vault, not restored), only
+    /// to that record's payee, and exactly its amount. Once per ref.
+    pub fn settle_pull(ctx: Context<SettlePull>, ref_hash: [u8; 32]) -> Result<()> {
+        let pull = read_pull_record(&ctx.accounts.pull)?;
+        require!(pull.ref_hash == ref_hash, RouterError::NotAnAuthorizedPull);
+        require!(!pull.executed && !pull.restored, RouterError::PullNotSettleable);
+        require_keys_eq!(ctx.accounts.destination.owner, pull.payee, RouterError::WrongPayee);
+        require!(ctx.accounts.inventory.amount >= pull.amount, RouterError::InsufficientInventory);
+
+        let seeds: &[&[u8]] = &[ROUTER_SEED, &[ctx.accounts.config.bump]];
+        transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.key(),
+                TransferChecked {
+                    from: ctx.accounts.inventory.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
+                    to: ctx.accounts.destination.to_account_info(),
+                    authority: ctx.accounts.config.to_account_info(),
+                },
+                &[seeds],
+            ),
+            pull.amount,
+            ctx.accounts.mint.decimals,
+        )?;
+
+        let now = Clock::get()?.unix_timestamp;
+        ctx.accounts.settlement.set_inner(Settlement {
+            ref_hash,
+            destination: ctx.accounts.destination.key(),
+            amount: pull.amount,
+            settled_at: now,
+            bump: ctx.bumps.settlement,
+            refunded: 0,
+        });
+        emit!(PullSettled { ref_hash, mandate: pull.mandate, payee: pull.payee, amount: pull.amount });
+        Ok(())
+    }
+
     /// Return settled stablecoin to inventory after the fiat leg was reversed.
     /// Funds can only come back from the account the settlement paid, signed by
     /// that account's owner (for a mandate vault, the allowance program signs
@@ -108,6 +170,15 @@ pub mod openfi_router {
         });
         Ok(())
     }
+}
+
+/// Decode an allowance `PullRecord`, refusing anything else: wrong owner,
+/// wrong discriminator or bad data.
+fn read_pull_record(info: &AccountInfo) -> Result<PullRecordView> {
+    require_keys_eq!(*info.owner, ALLOWANCE_PROGRAM_ID, RouterError::NotAnAuthorizedPull);
+    let data = info.try_borrow_data()?;
+    require!(data.len() >= 8 && data[..8] == PULL_RECORD_DISCRIMINATOR, RouterError::NotAnAuthorizedPull);
+    PullRecordView::deserialize(&mut &data[8..]).map_err(|_| error!(RouterError::NotAnAuthorizedPull))
 }
 
 #[account]
@@ -185,6 +256,32 @@ pub struct Settle<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(ref_hash: [u8; 32])]
+pub struct SettlePull<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(seeds = [ROUTER_SEED], bump = config.bump, has_one = authority, has_one = mint)]
+    pub config: Account<'info, RouterConfig>,
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(mut, seeds = [INVENTORY_SEED], bump = config.inventory_bump)]
+    pub inventory: InterfaceAccount<'info, TokenAccount>,
+    /// CHECK: decoded and validated in `read_pull_record` (owner, discriminator, contents).
+    pub pull: UncheckedAccount<'info>,
+    #[account(mut, token::mint = mint, token::token_program = token_program)]
+    pub destination: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + Settlement::INIT_SPACE,
+        seeds = [SETTLEMENT_SEED, ref_hash.as_ref()],
+        bump
+    )]
+    pub settlement: Account<'info, Settlement>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct Refund<'info> {
     /// Owner of the account the settlement paid into.
     pub source_authority: Signer<'info>,
@@ -215,6 +312,14 @@ pub struct Settled {
 }
 
 #[event]
+pub struct PullSettled {
+    pub ref_hash: [u8; 32],
+    pub mandate: Pubkey,
+    pub payee: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
 pub struct Refunded {
     pub ref_hash: [u8; 32],
     pub source: Pubkey,
@@ -232,4 +337,10 @@ pub enum RouterError {
     InsufficientInventory,
     #[msg("Refund would exceed the settled amount")]
     RefundExceedsSettlement,
+    #[msg("Not an authorized pull record from the allowance program")]
+    NotAnAuthorizedPull,
+    #[msg("Pull was already executed from the vault or restored")]
+    PullNotSettleable,
+    #[msg("Destination is not the pull's payee")]
+    WrongPayee,
 }

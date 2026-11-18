@@ -15,7 +15,7 @@ Built on Flick's licensed open banking infrastructure.
 | TypeScript adapter implementing the shared OpenFi chain interface | **Real**. Passes the shared conformance suite (22 rules) on LiteSVM. |
 | Credential issuance service (VC-JWT, status list) | Off-chain service; the on-chain side anchors commitments and the status-list root. Funded work. |
 | Milestone Escrow, Attestation Verifier | V2, funded work |
-| Router checks the allowance record in `settle` | Funded work |
+| Router checks the allowance record | **Real**, on devnet: `settle_pull` pays an authorised pull only to its payee, for its exact amount, once. `settle` (vault top-ups, and the shared interface's generic settlement) does not read allowance records. |
 | Operator keys | Prototype uses one key as executor, credential issuer, allowance operator and router authority. Production: separate keys in KMS, router authority behind a threshold multisig, upgrade authority behind a multisig with a timelock. |
 | Program initialisation | `init_*` instructions accept their first caller as admin. They were initialised immediately after deploy; before mainnet they will accept only the upgrade authority. |
 
@@ -67,6 +67,7 @@ agent ──signs PullIntent (ed25519, off-chain)──► OpenFi executor
 
 bank debit clears ──signed webhook──► settle-server ──► openfi_router.settle(chargeId) ──USDC──► mandate vault
 bank debit returns ─signed webhook──► settle-server ──► openfi_allowance.return_settlement ──CPI──► openfi_router.refund ──USDC──► float
+authorize_pull → fiat clears ───────► openfi_router.settle_pull(ref) ──reads the allowance pull record──► USDC to that pull's payee
 ```
 
 The epoch rolls inside the pull (aligned to the mandate's first epoch), so no keeper is needed. A pull record per reference makes a repeated reference fail.
@@ -101,7 +102,7 @@ Errors (6000+): IdentityRequired, DuplicateIdentity, InvalidLevel, InvalidExpiry
 | `issue_session(pubkey, sub_cap, expires_at, scope)` / `revoke_session` | principal | Agent keys with their own per-epoch cap and scope: `1` = may sign for `authorize_pull`, `2` = for `execute_pull`, `3` = both. A key scoped only for bank-side pulls can never move tokens from the vault. |
 | `authorize_pull(intent, session_pubkey)` | session-key signature | Spends allowance, emits `PullAuthorized`; the bank side moves fiat after this |
 | `execute_pull(intent, session_pubkey)` | session-key signature | Spends allowance and transfers from the vault to the payee |
-| `restore_allowance` | operator | Saga compensation when the fiat leg of an authorised pull returns |
+| `restore_allowance` | operator | Saga compensation when the fiat leg of an authorised pull returns. Refused once the router has paid the pull (`settle_pull`). |
 | `return_settlement(amount)` | operator | Saga compensation when the bank debit that funded the vault returns: sends USDC from the vault back to the router's float through `refund`, signed by the mandate |
 
 Errors (6000+): InvalidAmount, MandateRevoked, MandateExpired, UnknownSession, SessionRevoked, SessionExpired, BadSignature, StaleNonce, IntentExpired, PayeeNotAllowed, PerPullCapExceeded, EpochCapExceeded, SessionCapExceeded, TotalCapExceeded, InsufficientVault, TooManyPayees, InvalidMandate, NotRestorable, ScopeNotAllowed.
@@ -112,9 +113,10 @@ Errors (6000+): InvalidAmount, MandateRevoked, MandateExpired, UnknownSession, S
 |---|---|---|
 | `init_router(authority)` | admin | Router config and its USDC float |
 | `settle(ref_hash, amount)` | settlement authority | Pays from the float to a token account, records a `Settlement` PDA keyed by the reference, emits `Settled` |
+| `settle_pull(ref_hash)` | settlement authority | Pays an authorised pull after its fiat leg clears. Reads the allowance program's pull record and pays only if it is open (not executed from the vault, not restored), only to its payee, and exactly its amount. Records a `Settlement` for the ref, emits `PullSettled`. |
 | `refund(amount)` | owner of the account that was paid | Returns USDC to the float against a `Settlement`, only from the account it paid; partial refunds add up to at most the settled amount; emits `Refunded` |
 
-Errors (6000+): InvalidAmount, InsufficientInventory, RefundExceedsSettlement.
+Errors (6000+): InvalidAmount, InsufficientInventory, RefundExceedsSettlement, NotAnAuthorizedPull, PullNotSettleable, WrongPayee.
 
 Amounts are integers in the token's base units (USDC has 6 decimals: 10 USDC = `10000000`). Programs use the token interface, so classic SPL Token and Token-2022 mints both work.
 
@@ -132,7 +134,7 @@ cargo test -p openfi_allowance --lib          # epoch rollover and intent layout
 cd adapter && npm install && npm test         # conformance suite + on-chain enforcement, on LiteSVM
 ```
 
-`adapter/test/onchain.test.ts` checks that each key rejection is a failed transaction with the program's error in its logs, not a refusal made off-chain, including a genuine $1 signature replayed as a $9 pull. `adapter/test/update-refund.test.ts` covers mandate updates (old-nonce intents die, only the principal can update, a revoked mandate stays revoked) and refunds (partial then full, never above the settled amount, never from an account the settlement did not pay, operator only). `adapter/test/scope.test.ts` covers session scopes (a bank-pull-only key cannot move vault tokens, and the reverse). `adapter/test/status-deposit-close.test.ts` covers the status root (moves forward only, issuer only), deposits (principal only, not into a revoked mandate) and close (balance back to the principal, operator required, id never reusable).
+`adapter/test/onchain.test.ts` checks that each key rejection is a failed transaction with the program's error in its logs, not a refusal made off-chain, including a genuine $1 signature replayed as a $9 pull. `adapter/test/update-refund.test.ts` covers mandate updates (old-nonce intents die, only the principal can update, a revoked mandate stays revoked) and refunds (partial then full, never above the settled amount, never from an account the settlement did not pay, operator only). `adapter/test/settle-pull.test.ts` covers the router's allowance check (only that payee, that amount, once; never for an executed, restored or unknown pull; never from a forged record; and a paid pull cannot be restored). `adapter/test/scope.test.ts` covers session scopes (a bank-pull-only key cannot move vault tokens, and the reverse). `adapter/test/status-deposit-close.test.ts` covers the status root (moves forward only, issuer only), deposits (principal only, not into a revoked mandate) and close (balance back to the principal, operator required, id never reusable).
 
 ## Run the demo on devnet
 

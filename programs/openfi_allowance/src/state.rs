@@ -95,6 +95,8 @@ pub struct PullRecord {
     pub executed: bool,
     pub restored: bool,
     pub bump: u8,
+    /// Who the pull pays. The router's `settle_pull` pays only this wallet.
+    pub payee: Pubkey,
 }
 
 /// What the agent signs. Encoded by `PullIntent::message`.
@@ -177,6 +179,29 @@ mod tests {
         let mut m = mandate(1000);
         m.roll_epoch(1350);
         assert_eq!(m.epoch_start, 1300);
+    }
+
+    #[test]
+    fn router_reads_pull_records_correctly() {
+        use anchor_lang::Discriminator;
+        assert_eq!(openfi_router::PULL_RECORD_DISCRIMINATOR, PullRecord::DISCRIMINATOR);
+        let record = PullRecord {
+            mandate: Pubkey::new_from_array([1; 32]),
+            session: Pubkey::new_from_array([2; 32]),
+            ref_hash: [3; 32],
+            amount: 7,
+            epoch_start: -5,
+            executed: false,
+            restored: true,
+            bump: 254,
+            payee: Pubkey::new_from_array([4; 32]),
+        };
+        let mut data = Vec::new();
+        record.try_serialize(&mut data).unwrap();
+        let view = openfi_router::PullRecordView::deserialize(&mut &data[8..]).unwrap();
+        assert_eq!((view.mandate, view.session, view.ref_hash), (record.mandate, record.session, record.ref_hash));
+        assert_eq!((view.amount, view.epoch_start, view.executed, view.restored, view.bump), (7, -5, false, true, 254));
+        assert_eq!(view.payee, record.payee);
     }
 
     #[test]
