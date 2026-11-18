@@ -40,9 +40,9 @@ describe('update_mandate and refund', () => {
     await h.adapter.issueSession({ mandateId: m.mandateId, sessionPubkey: key.pubkey, subCap: usd('50'), expiresAt: m.expiresAt });
     const pull = async (amount: string, nonce: number) => {
       const intent: PullIntent = { mandateId: m.mandateId, payee: payee.address, amount: usd(amount), ref: randomUUID(), nonce, expiresAt: (await h.now()) + 300 };
-      return h.adapter.authorizePull({ intent, sessionPubkey: key.pubkey, signature: key.sign(h.adapter.encodeIntent(intent)) });
+      return h.adapter.authorizePull({ intent, sessionPubkey: key.pubkey, signature: key.sign(h.adapter.encodeIntent(intent)) }).then(() => intent.ref);
     };
-    return { m, principal, pull, vault: allowancePdas.vault(allowancePdas.mandate(m.mandateId)) };
+    return { m, principal, payee, pull, vault: allowancePdas.vault(allowancePdas.mandate(m.mandateId)) };
   }
 
   const code = (p: Promise<unknown>) => p.then(() => null, (e) => (e instanceof ChainError ? e.code : e));
@@ -108,7 +108,7 @@ describe('update_mandate and refund', () => {
     it('returns a settled vault top-up to inventory, partially and then in full, never more', async () => {
       const { m, vault } = await mandate();
       const ref = `chg_${randomUUID()}`;
-      await h.adapter.settle({ ref, destination: vault, amount: usd('10') });
+      await h.adapter.settle({ ref, mandateId: m.mandateId, amount: usd('10') });
       const inventory = await h.tokenBalance(routerPdas.inventory());
 
       await h.adapter.returnSettlement({ mandateId: m.mandateId, ref, amount: usd('4') });
@@ -129,7 +129,7 @@ describe('update_mandate and refund', () => {
       const a = await mandate();
       const b = await mandate();
       const ref = `chg_${randomUUID()}`;
-      await h.adapter.settle({ ref, destination: a.vault, amount: usd('10') });
+      await h.adapter.settle({ ref, mandateId: a.m.mandateId, amount: usd('10') });
       await h.fundVault(b.m.mandateId, usd('10'));
       expect(await code(h.adapter.returnSettlement({ mandateId: b.m.mandateId, ref, amount: usd('10') }))).toBe('UNAUTHORIZED');
       expect(await h.tokenBalance(b.vault)).toBe(usd('10'));
@@ -138,7 +138,7 @@ describe('update_mandate and refund', () => {
     it('only the operator can return a vault top-up', async () => {
       const { m, vault } = await mandate();
       const ref = `chg_${randomUUID()}`;
-      await h.adapter.settle({ ref, destination: vault, amount: usd('10') });
+      await h.adapter.settle({ ref, mandateId: m.mandateId, amount: usd('10') });
       const stranger = await generateKeyPairSigner();
       const mandateAddr = allowancePdas.mandate(m.mandateId);
       const ix = getReturnSettlementInstruction({
@@ -157,11 +157,11 @@ describe('update_mandate and refund', () => {
       expect(await h.tokenBalance(vault)).toBe(usd('10'));
     });
 
-    it('a wallet that was paid directly can refund by signing itself; nobody else can', async () => {
-      const w = await h.newWallet();
+    it('a payee paid for a pull can refund by signing itself; nobody else can', async () => {
+      const { m, payee: w, pull } = await mandate();
       const [ata] = await findAssociatedTokenPda({ owner: w.address as Address, mint: h.mint, tokenProgram: TOKEN_PROGRAM_ADDRESS });
-      const ref = `chg_${randomUUID()}`;
-      await h.adapter.settle({ ref, destination: w.address, amount: usd('3') });
+      const ref = await pull('3', 0);
+      await h.adapter.settlePull({ mandateId: m.mandateId, ref });
       const refund = (signer: TransactionSigner) =>
         getRefundInstruction({
           sourceAuthority: signer,
@@ -182,7 +182,7 @@ describe('update_mandate and refund', () => {
     it('the refund is recorded against the settlement ref', async () => {
       const { m, vault } = await mandate();
       const ref = `chg_${randomUUID()}`;
-      await h.adapter.settle({ ref, destination: vault, amount: usd('2') });
+      await h.adapter.settle({ ref, mandateId: m.mandateId, amount: usd('2') });
       await h.adapter.returnSettlement({ mandateId: m.mandateId, ref, amount: usd('2') });
       const s = await h.adapter.settlement(ref);
       expect(s).toEqual({ destination: vault, amount: usd('2'), refunded: usd('2') });

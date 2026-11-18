@@ -164,7 +164,7 @@ describe('rotate_status_root, deposit and close', () => {
     it('after close, a returned settlement can no longer be recovered from the vault', async () => {
       const { m, vault } = await mandate();
       const ref = `chg_${randomUUID()}`;
-      await h.adapter.settle({ ref, destination: vault, amount: usd('5') });
+      await h.adapter.settle({ ref, mandateId: m.mandateId, amount: usd('5') });
       await h.adapter.closeMandate(m.mandateId);
       // This is why close needs the operator's signature.
       expect(await h.adapter.returnSettlement({ mandateId: m.mandateId, ref, amount: usd('5') }).then(() => 'ok', () => 'failed')).toBe('failed');

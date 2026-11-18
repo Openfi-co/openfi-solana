@@ -88,8 +88,7 @@ function verified(raw: Buffer, sig: unknown, ts: unknown): boolean {
 }
 
 async function settle({ chargeId, amount, mandateId }: Instruction) {
-  const vault = allowancePdas.vault(allowancePdas.mandate(mandateId));
-  const r = await adapter.settle({ ref: chargeId, destination: vault, amount });
+  const r = await adapter.settle({ ref: chargeId, mandateId, amount });
   return r.status === 'duplicate' ? { status: 'already_settled' } : { status: 'settled', tx: r.explorerUrl };
 }
 

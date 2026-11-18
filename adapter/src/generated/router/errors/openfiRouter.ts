@@ -21,12 +21,18 @@ export const OPENFI_ROUTER_ERROR__NOT_AN_AUTHORIZED_PULL = 0x1773; // 6003
 export const OPENFI_ROUTER_ERROR__PULL_NOT_SETTLEABLE = 0x1774; // 6004
 /** WrongPayee: Destination is not the pull's payee */
 export const OPENFI_ROUTER_ERROR__WRONG_PAYEE = 0x1775; // 6005
+/** NotAMandateVault: Destination is not the vault of an allowance mandate */
+export const OPENFI_ROUTER_ERROR__NOT_A_MANDATE_VAULT = 0x1776; // 6006
+/** MandateRevoked: Mandate has been revoked */
+export const OPENFI_ROUTER_ERROR__MANDATE_REVOKED = 0x1777; // 6007
+/** MandateExpired: Mandate has expired */
+export const OPENFI_ROUTER_ERROR__MANDATE_EXPIRED = 0x1778; // 6008
 
-export type OpenfiRouterError = typeof OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY | typeof OPENFI_ROUTER_ERROR__INVALID_AMOUNT | typeof OPENFI_ROUTER_ERROR__NOT_AN_AUTHORIZED_PULL | typeof OPENFI_ROUTER_ERROR__PULL_NOT_SETTLEABLE | typeof OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT | typeof OPENFI_ROUTER_ERROR__WRONG_PAYEE;
+export type OpenfiRouterError = typeof OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY | typeof OPENFI_ROUTER_ERROR__INVALID_AMOUNT | typeof OPENFI_ROUTER_ERROR__MANDATE_EXPIRED | typeof OPENFI_ROUTER_ERROR__MANDATE_REVOKED | typeof OPENFI_ROUTER_ERROR__NOT_A_MANDATE_VAULT | typeof OPENFI_ROUTER_ERROR__NOT_AN_AUTHORIZED_PULL | typeof OPENFI_ROUTER_ERROR__PULL_NOT_SETTLEABLE | typeof OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT | typeof OPENFI_ROUTER_ERROR__WRONG_PAYEE;
 
 let openfiRouterErrorMessages: Record<OpenfiRouterError, string> | undefined;
 if (process.env['NODE_ENV'] !== 'production') {
-  openfiRouterErrorMessages = { [OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY]: `Router inventory is too low for this settlement`, [OPENFI_ROUTER_ERROR__INVALID_AMOUNT]: `Amount must be greater than zero`, [OPENFI_ROUTER_ERROR__NOT_AN_AUTHORIZED_PULL]: `Not an authorized pull record from the allowance program`, [OPENFI_ROUTER_ERROR__PULL_NOT_SETTLEABLE]: `Pull was already executed from the vault or restored`, [OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT]: `Refund would exceed the settled amount`, [OPENFI_ROUTER_ERROR__WRONG_PAYEE]: `Destination is not the pull's payee` };
+  openfiRouterErrorMessages = { [OPENFI_ROUTER_ERROR__INSUFFICIENT_INVENTORY]: `Router inventory is too low for this settlement`, [OPENFI_ROUTER_ERROR__INVALID_AMOUNT]: `Amount must be greater than zero`, [OPENFI_ROUTER_ERROR__MANDATE_EXPIRED]: `Mandate has expired`, [OPENFI_ROUTER_ERROR__MANDATE_REVOKED]: `Mandate has been revoked`, [OPENFI_ROUTER_ERROR__NOT_A_MANDATE_VAULT]: `Destination is not the vault of an allowance mandate`, [OPENFI_ROUTER_ERROR__NOT_AN_AUTHORIZED_PULL]: `Not an authorized pull record from the allowance program`, [OPENFI_ROUTER_ERROR__PULL_NOT_SETTLEABLE]: `Pull was already executed from the vault or restored`, [OPENFI_ROUTER_ERROR__REFUND_EXCEEDS_SETTLEMENT]: `Refund would exceed the settled amount`, [OPENFI_ROUTER_ERROR__WRONG_PAYEE]: `Destination is not the pull's payee` };
 }
 
 export function getOpenfiRouterErrorMessage(code: OpenfiRouterError): string {

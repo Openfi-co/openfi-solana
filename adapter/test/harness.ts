@@ -120,6 +120,10 @@ export async function createLiteSvmHarness(): Promise<
     async fundRouter(amount) {
       await mintTo(routerPdas.inventory(), amount);
     },
+    async vaultBalanceOf(mandateId) {
+      const acc = await transport.getAccount(allowancePdas.vault(allowancePdas.mandate(mandateId)));
+      return acc ? getTokenDecoder().decode(acc.data).amount : 0n;
+    },
     async balanceOf(address) {
       const acc = await transport.getAccount(await ata(address as Address));
       return acc ? getTokenDecoder().decode(acc.data).amount : 0n;

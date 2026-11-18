@@ -12,10 +12,10 @@ Built on Flick's licensed open banking infrastructure.
 | Allowance State Machine (`openfi_allowance`): per-pull, per-epoch and total caps, expiry, payee allowlist, nonce, session keys with their own caps and scope (bank-side pulls, vault pulls or both), ed25519-signed pull intents, `authorize_pull` (bank side) and `execute_pull` (from the mandate's vault), `update_mandate` (bumps the nonce so old intents die), prefund `deposit`, `close` (pays the vault back to the principal), allowance restore and vault return after a returned debit | **Real**, on devnet |
 | Settlement Router (`openfi_router`): pays USDC from OpenFi's float for a cleared bank debit, once per charge ID; `refund` sends it back to the float if the debit returns, never more than was settled | **Real**, on devnet |
 | Bank-debit webhook listener (`adapter/scripts/settle-server.ts`) | **Real**. Driven end to end by a sandbox bank debit from Flick's open banking sandbox (see below). A `returned` webhook sends the USDC still in the vault back to the float. |
-| TypeScript adapter implementing the shared OpenFi chain interface | **Real**. Passes the shared conformance suite (22 rules) on LiteSVM. |
+| TypeScript adapter implementing the shared OpenFi chain interface | **Real**. Passes the shared conformance suite (25 rules) on LiteSVM. |
 | Credential issuance service (VC-JWT, status list) | Off-chain service; the on-chain side anchors commitments and the status-list root. Funded work. |
 | Milestone Escrow, Attestation Verifier | V2, funded work |
-| Router checks the allowance record | **Real**, on devnet: `settle_pull` pays an authorised pull only to its payee, for its exact amount, once. `settle` (vault top-ups, and the shared interface's generic settlement) does not read allowance records. |
+| Router checks the allowance record | **Real**, on devnet. The router never pays an arbitrary account: `settle` pays only into the vault of a live mandate (allowance program, not revoked, not expired), and `settle_pull` pays an authorised pull only to its payee, for its exact amount, once. |
 | Operator keys | Prototype uses one key as executor, credential issuer, allowance operator and router authority. Production: separate keys in KMS, router authority behind a threshold multisig, upgrade authority behind a multisig with a timelock. |
 | Program initialisation | `init_*` instructions accept their first caller as admin. They were initialised immediately after deploy; before mainnet they will accept only the upgrade authority. |
 
@@ -112,11 +112,11 @@ Errors (6000+): InvalidAmount, MandateRevoked, MandateExpired, UnknownSession, S
 | Instruction | Auth | Purpose |
 |---|---|---|
 | `init_router(authority)` | admin | Router config and its USDC float |
-| `settle(ref_hash, amount)` | settlement authority | Pays from the float to a token account, records a `Settlement` PDA keyed by the reference, emits `Settled` |
+| `settle(ref_hash, amount)` | settlement authority | Funds a mandate's vault after its bank debit clears. Reads the allowance program's mandate and pays only into that mandate's vault, only while it is live (not revoked, not expired, same mint). Records a `Settlement` PDA keyed by the reference, emits `Settled`. |
 | `settle_pull(ref_hash)` | settlement authority | Pays an authorised pull after its fiat leg clears. Reads the allowance program's pull record and pays only if it is open (not executed from the vault, not restored), only to its payee, and exactly its amount. Records a `Settlement` for the ref, emits `PullSettled`. |
 | `refund(amount)` | owner of the account that was paid | Returns USDC to the float against a `Settlement`, only from the account it paid; partial refunds add up to at most the settled amount; emits `Refunded` |
 
-Errors (6000+): InvalidAmount, InsufficientInventory, RefundExceedsSettlement, NotAnAuthorizedPull, PullNotSettleable, WrongPayee.
+Errors (6000+): InvalidAmount, InsufficientInventory, RefundExceedsSettlement, NotAnAuthorizedPull, PullNotSettleable, WrongPayee, NotAMandateVault, MandateRevoked, MandateExpired.
 
 Amounts are integers in the token's base units (USDC has 6 decimals: 10 USDC = `10000000`). Programs use the token interface, so classic SPL Token and Token-2022 mints both work.
 
@@ -134,7 +134,7 @@ cargo test -p openfi_allowance --lib          # epoch rollover and intent layout
 cd adapter && npm install && npm test         # conformance suite + on-chain enforcement, on LiteSVM
 ```
 
-`adapter/test/onchain.test.ts` checks that each key rejection is a failed transaction with the program's error in its logs, not a refusal made off-chain, including a genuine $1 signature replayed as a $9 pull. `adapter/test/update-refund.test.ts` covers mandate updates (old-nonce intents die, only the principal can update, a revoked mandate stays revoked) and refunds (partial then full, never above the settled amount, never from an account the settlement did not pay, operator only). `adapter/test/settle-pull.test.ts` covers the router's allowance check (only that payee, that amount, once; never for an executed, restored or unknown pull; never from a forged record; and a paid pull cannot be restored). `adapter/test/scope.test.ts` covers session scopes (a bank-pull-only key cannot move vault tokens, and the reverse). `adapter/test/status-deposit-close.test.ts` covers the status root (moves forward only, issuer only), deposits (principal only, not into a revoked mandate) and close (balance back to the principal, operator required, id never reusable).
+`adapter/test/onchain.test.ts` checks that each key rejection is a failed transaction with the program's error in its logs, not a refusal made off-chain, including a genuine $1 signature replayed as a $9 pull. `adapter/test/update-refund.test.ts` covers mandate updates (old-nonce intents die, only the principal can update, a revoked mandate stays revoked) and refunds (partial then full, never above the settled amount, never from an account the settlement did not pay, operator only). `adapter/test/settle-vault.test.ts` covers the router's `settle` restriction (a wallet, another mandate's vault, a forged mandate, a revoked or expired mandate are all refused on-chain). `adapter/test/settle-pull.test.ts` covers the router's allowance check (only that payee, that amount, once; never for an executed, restored or unknown pull; never from a forged record; and a paid pull cannot be restored). `adapter/test/scope.test.ts` covers session scopes (a bank-pull-only key cannot move vault tokens, and the reverse). `adapter/test/status-deposit-close.test.ts` covers the status root (moves forward only, issuer only), deposits (principal only, not into a revoked mandate) and close (balance back to the principal, operator required, id never reusable).
 
 ## Run the demo on devnet
 

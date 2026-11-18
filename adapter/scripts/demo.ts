@@ -149,7 +149,7 @@ if (link) {
   const [sig] = await t.signaturesFor(settlement, 1);
   await save(`Bank debit ${payment.chargeId} cleared: router settles 10 USDC to vault`, 'accepted', sig!);
 } else {
-  await record('Bank debit cleared: router settles 10 USDC to vault', adapter.settle({ ref: `chg_demo_${randomUUID()}`, destination: vault, amount: usd('10') }));
+  await record('Bank debit cleared: router settles 10 USDC to vault', adapter.settle({ ref: `chg_demo_${randomUUID()}`, mandateId, amount: usd('10') }));
 }
 
 if (process.env.PAUSE) {

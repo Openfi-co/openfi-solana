@@ -360,18 +360,20 @@ export class SolanaChainAdapter implements ChainAdapter {
 
   // ---------------------------------------------------------------- settlement
 
-  async settle(i: { ref: string; destination: string; amount: bigint }): Promise<TxResult> {
+  /** Fund a mandate's vault after its bank debit clears. The router refuses any other destination. */
+  async settle(i: { ref: string; mandateId: string; amount: bigint }): Promise<TxResult> {
     if (i.amount <= 0n) throw new ChainError('INVALID_AMOUNT');
     const settlement = routerPdas.settlement(i.ref);
     if (await this.t.getAccount(settlement)) return { txId: null, status: 'duplicate' };
-    const destination = await this.tokenAccount(i.destination as Address);
+    const { address: mandate } = await this.loadMandate(i.mandateId);
     return this.submit([
       getSettleInstruction({
         authority: this.executor,
         config: routerPdas.config(),
         mint: this.mint,
         inventory: routerPdas.inventory(),
-        destination,
+        mandate,
+        destination: allowancePdas.vault(mandate),
         settlement,
         tokenProgram: this.tokenProgram,
         refHash: sha256(i.ref),

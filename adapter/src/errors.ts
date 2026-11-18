@@ -19,6 +19,7 @@ const SPECIAL: Record<string, ChainErrorCode> = {
   NotAnAuthorizedPull: 'UNAUTHORIZED',
   PullNotSettleable: 'UNAUTHORIZED',
   WrongPayee: 'UNAUTHORIZED',
+  NotAMandateVault: 'UNAUTHORIZED',
 };
 
 /** Anchor framework constraint errors (has_one, seeds, signer, ...). */

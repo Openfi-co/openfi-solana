@@ -15,6 +15,35 @@ pub const ALLOWANCE_PROGRAM_ID: Pubkey = pubkey!("9BNvSF8bUEQJaBbWxBmtjRnBH1qmM4
 /// test in the allowance crate checks it, and the layout below, against the real type.
 pub const PULL_RECORD_DISCRIMINATOR: [u8; 8] = [167, 170, 127, 214, 16, 95, 163, 211];
 
+/// Anchor discriminator of the allowance program's `Mandate` account (checked
+/// against the real type by the same unit test).
+pub const MANDATE_DISCRIMINATOR: [u8; 8] = [113, 216, 98, 159, 185, 63, 55, 18];
+/// The allowance program's vault seed: a mandate's vault is
+/// `["vault", mandate]` under the allowance program.
+pub const ALLOWANCE_VAULT_SEED: &[u8] = b"vault";
+
+/// Layout of the allowance program's `Mandate`, after the discriminator.
+#[derive(AnchorDeserialize)]
+pub struct MandateView {
+    pub id: [u8; 32],
+    pub principal: Pubkey,
+    pub mint: Pubkey,
+    pub payees: Vec<Pubkey>,
+    pub per_pull_cap: u64,
+    pub epoch_seconds: i64,
+    pub epoch_cap: u64,
+    pub total_cap: u64,
+    pub epoch_start: i64,
+    pub spent_epoch: u64,
+    pub spent_total: u64,
+    pub expires_at: i64,
+    pub required_level: u8,
+    pub nonce: u64,
+    pub revoked: bool,
+    pub bump: u8,
+    pub vault_bump: u8,
+}
+
 /// Layout of the allowance program's `PullRecord`, after the discriminator.
 #[derive(AnchorDeserialize)]
 pub struct PullRecordView {
@@ -30,7 +59,8 @@ pub struct PullRecordView {
 }
 
 /// SettlementRouter: once fiat clears off-chain, pays stablecoin from OpenFi's
-/// inventory to the destination. Idempotent by `ref`: the `Settlement` record
+/// inventory into a mandate's vault (`settle`) or to an authorised pull's
+/// payee (`settle_pull`), never to an arbitrary account. Idempotent by `ref`: the `Settlement` record
 /// is created on first settle, so a repeated ref can never pay twice. If the
 /// fiat leg is later reversed (a bank debit returns), `refund` sends the
 /// stablecoin back to inventory against the same record.
@@ -53,9 +83,22 @@ pub mod openfi_router {
         Ok(())
     }
 
-    /// `ref_hash` is sha256 of the payment ref (the bank charge ID).
+    /// Fund a mandate's vault once its bank debit has cleared. `ref_hash` is
+    /// sha256 of the payment ref (the bank charge ID). Pays only into the vault
+    /// of a live mandate (allowance program, not revoked, not expired, same
+    /// mint), never to an arbitrary account.
     pub fn settle(ctx: Context<Settle>, ref_hash: [u8; 32], amount: u64) -> Result<()> {
         require!(amount > 0, RouterError::InvalidAmount);
+        let mandate = read_mandate(&ctx.accounts.mandate)?;
+        require!(!mandate.revoked, RouterError::MandateRevoked);
+        require!(Clock::get()?.unix_timestamp < mandate.expires_at, RouterError::MandateExpired);
+        require_keys_eq!(mandate.mint, ctx.accounts.mint.key(), RouterError::NotAMandateVault);
+        let vault = Pubkey::create_program_address(
+            &[ALLOWANCE_VAULT_SEED, ctx.accounts.mandate.key.as_ref(), &[mandate.vault_bump]],
+            &ALLOWANCE_PROGRAM_ID,
+        )
+        .map_err(|_| error!(RouterError::NotAMandateVault))?;
+        require_keys_eq!(ctx.accounts.destination.key(), vault, RouterError::NotAMandateVault);
         require!(ctx.accounts.inventory.amount >= amount, RouterError::InsufficientInventory);
 
         let seeds: &[&[u8]] = &[ROUTER_SEED, &[ctx.accounts.config.bump]];
@@ -172,6 +215,14 @@ pub mod openfi_router {
     }
 }
 
+/// Decode an allowance `Mandate`, refusing anything else.
+fn read_mandate(info: &AccountInfo) -> Result<MandateView> {
+    require_keys_eq!(*info.owner, ALLOWANCE_PROGRAM_ID, RouterError::NotAMandateVault);
+    let data = info.try_borrow_data()?;
+    require!(data.len() >= 8 && data[..8] == MANDATE_DISCRIMINATOR, RouterError::NotAMandateVault);
+    MandateView::deserialize(&mut &data[8..]).map_err(|_| error!(RouterError::NotAMandateVault))
+}
+
 /// Decode an allowance `PullRecord`, refusing anything else: wrong owner,
 /// wrong discriminator or bad data.
 fn read_pull_record(info: &AccountInfo) -> Result<PullRecordView> {
@@ -241,6 +292,9 @@ pub struct Settle<'info> {
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(mut, seeds = [INVENTORY_SEED], bump = config.inventory_bump)]
     pub inventory: InterfaceAccount<'info, TokenAccount>,
+    /// CHECK: decoded and validated in `read_mandate` (owner, discriminator, contents).
+    pub mandate: UncheckedAccount<'info>,
+    /// The mandate's vault; checked against its address in `settle`.
     #[account(mut, token::mint = mint, token::token_program = token_program)]
     pub destination: InterfaceAccount<'info, TokenAccount>,
     #[account(
@@ -343,4 +397,10 @@ pub enum RouterError {
     PullNotSettleable,
     #[msg("Destination is not the pull's payee")]
     WrongPayee,
+    #[msg("Destination is not the vault of an allowance mandate")]
+    NotAMandateVault,
+    #[msg("Mandate has been revoked")]
+    MandateRevoked,
+    #[msg("Mandate has expired")]
+    MandateExpired,
 }

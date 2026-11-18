@@ -205,6 +205,24 @@ mod tests {
     }
 
     #[test]
+    fn router_reads_mandates_correctly() {
+        use anchor_lang::Discriminator;
+        assert_eq!(openfi_router::MANDATE_DISCRIMINATOR, Mandate::DISCRIMINATOR);
+        assert_eq!(openfi_router::ALLOWANCE_VAULT_SEED, VAULT_SEED);
+        assert_eq!(openfi_router::ALLOWANCE_PROGRAM_ID, crate::ID);
+        let mut m = mandate(77);
+        m.payees = vec![Pubkey::new_from_array([9; 32]), Pubkey::new_from_array([8; 32])];
+        m.mint = Pubkey::new_from_array([5; 32]);
+        m.revoked = true;
+        m.vault_bump = 253;
+        m.expires_at = 123;
+        let mut data = Vec::new();
+        m.try_serialize(&mut data).unwrap();
+        let v = openfi_router::MandateView::deserialize(&mut &data[8..]).unwrap();
+        assert_eq!((v.mint, v.payees.len(), v.revoked, v.vault_bump, v.expires_at, v.epoch_start), (m.mint, 2, true, 253, 123, 77));
+    }
+
+    #[test]
     fn intent_message_layout() {
         let i = PullIntent { payee: Pubkey::new_from_array([2; 32]), amount: 7, ref_hash: [3; 32], nonce: 9, expires_at: -1 };
         let msg = i.message(&Pubkey::new_from_array([1; 32]));
