@@ -7,7 +7,8 @@
 //
 //   npx tsx scripts/settle-server.ts
 //
-// Env: WEBHOOK_SECRET (sandbox signing secret), BANK_API_BASE (sandbox base URL),
+// Env: WEBHOOK_SECRET (sandbox signing secret), WEBHOOK_SIGNATURE_HEADER,
+//      WEBHOOK_TIMESTAMP_HEADER, BANK_API_BASE (sandbox base URL),
 //      OPENFI_KEY (router authority keypair), SOLANA_RPC, PORT (default 8788).
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -22,8 +23,9 @@ import { RpcTransport } from '../src/rpc-transport.js';
 const need = (k: string) => process.env[k] ?? (console.error(`missing env ${k}`), process.exit(1));
 const WEBHOOK_SECRET = need('WEBHOOK_SECRET');
 const BANK_API_BASE = process.env.BANK_API_BASE ?? 'http://127.0.0.1:43181';
-const SIG_HEADER = (process.env.WEBHOOK_SIGNATURE_HEADER ?? 'x-webhook-signature').toLowerCase();
-const TS_HEADER = (process.env.WEBHOOK_TIMESTAMP_HEADER ?? 'x-webhook-timestamp').toLowerCase();
+// Header names are the rail's; set them in .env (see .env.example).
+const SIG_HEADER = need('WEBHOOK_SIGNATURE_HEADER').toLowerCase();
+const TS_HEADER = need('WEBHOOK_TIMESTAMP_HEADER').toLowerCase();
 const MAX_SKEW_SECS = 300;
 const PORT = Number(process.env.PORT ?? 8788);
 const USDC = address(process.env.USDC_MINT ?? '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
