@@ -122,7 +122,7 @@ Amounts are integers in the token's base units (USDC has 6 decimals: 10 USDC = `
 
 ## Shared interface
 
-The adapter implements the chain-agnostic OpenFi `ChainAdapter` interface and runs the shared conformance suite, the same rules every OpenFi chain must enforce (the Stellar prototype is the other). Those two packages, `@openfi/chain-interface` and `@openfi/chain-conformance`, are being published to npm; until then the adapter resolves them from a local checkout.
+The adapter implements the chain-agnostic OpenFi `ChainAdapter` interface and runs the shared conformance suite, the same rules every OpenFi chain must enforce (the Stellar prototype is the other). Both come from npm: [`@openfi/chain-interface`](https://www.npmjs.com/package/@openfi/chain-interface) and [`@openfi/chain-conformance`](https://www.npmjs.com/package/@openfi/chain-conformance), pinned at `0.1.0`.
 
 ## Run the tests
 
